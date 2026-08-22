@@ -1,7 +1,9 @@
-const CACHE_NAME = 'dino-runner-v2';
+const CACHE_NAME = 'dino-runner-v3';
 const ASSETS = [
   './',
   './index.html',
+  './style.css',
+  './script.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

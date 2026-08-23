@@ -173,11 +173,17 @@
     width: 100%;
     height: 100%;
     overflow-y: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
     padding: 24px 16px;
+    display: flex;
+    flex-direction: column;
   }
+  .scroll-wrap > .card { margin: auto; }
+  #lobby .scroll-wrap {
+    padding-bottom: 26px;
+  }
+  #lobby .scroll-wrap > .card { margin: auto auto 0; }
   .card {
     background: rgba(255,255,255,0.94);
     border-radius: 26px;
@@ -217,7 +223,6 @@
     z-index: 1;
     pointer-events: none;
   }
-  #lobby .scroll-wrap { align-items: flex-end; padding-bottom: 26px; }
   #lobby h1 {
     font-size: clamp(20px, 7vw, 26px);
     letter-spacing: 3px;
@@ -363,14 +368,6 @@
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
   }
-  #lobby .profile-pill {
-    background: rgba(20,20,24,0.42);
-    border-color: rgba(255,255,255,0.3);
-    color: #fff;
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-  }
-  #lobby .profile-pill:active { background: rgba(20,20,24,0.6); }
   .reset-link {
     margin-top: 16px;
     font-size: 10px;
@@ -381,20 +378,43 @@
   }
   .reset-link:active { color: #e5484d; }
 
-  /* Profil pill di lobby */
-  .profile-pill {
-    font-family: 'Courier New', monospace;
-    font-size: 11px;
-    font-weight: bold;
-    color: #5a5a5a;
-    background: #fff;
-    border: 2px solid #e8e8e8;
-    border-radius: 20px;
-    padding: 6px 14px;
-    margin-bottom: 14px;
+  /* Avatar profil bulat, mengambang di kiri atas layar lobby */
+  .profile-avatar-btn {
+    position: absolute;
+    top: 16px; left: 16px;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    padding: 0;
     cursor: pointer;
   }
-  .profile-pill:active { background: #f3f3f3; }
+  .profile-avatar-btn .avatar-icon {
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    background: linear-gradient(160deg, rgba(255,255,255,0.96), rgba(255,255,255,0.78));
+    border: 2px solid rgba(255,255,255,0.85);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.9);
+    transition: transform 0.1s ease;
+  }
+  .profile-avatar-btn:active .avatar-icon { transform: scale(0.9); }
+  .profile-avatar-btn .avatar-label {
+    font-size: 9px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+    max-width: 64px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
   /* Layar Akun & Profil */
   #accountBg { background: linear-gradient(180deg, #cdb8e8 0%, #f2eaff 55%, #8a6fc9 55%, #5c439c 100%); }
@@ -869,7 +889,7 @@
     0% { opacity: 0; transform: translateY(16px); }
     100% { opacity: 1; transform: translateY(0); }
   }
-  #lobby.active .profile-pill { animation: fadeSlideUp 0.35s ease both; }
+  #lobby.active .profile-avatar-btn { animation: fadeSlideUp 0.35s ease both; }
   #lobby.active h1 { animation: fadeSlideUp 0.35s ease both 0.04s; }
   #lobby.active #lobbyVersionTag { animation: fadeSlideUp 0.35s ease both 0.08s; }
   #lobby.active .stat-row { animation: fadeSlideUp 0.35s ease both 0.12s; }

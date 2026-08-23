@@ -200,14 +200,16 @@ const GRAVITY = 0.6;
 const JUMP_FORCE = -12.5;
 
 /* ===================== SISTEM AKUN LOKAL (PROFIL + BACKUP) =====================
-   Catatan jujur: game ini file HTML tunggal yang berjalan 100% offline tanpa
-   server, jadi tidak memungkinkan login online/cloud sungguhan. Yang dibangun
-   di sini untuk membuat data "lebih aman" adalah:
    1) Profil lokal bernama (bisa lebih dari satu di HP/browser yang sama) supaya
       data antar pemain tidak tercampur.
    2) Kunci PIN opsional per profil — pembatas ringan, BUKAN enkripsi sungguhan.
-   3) Export/Import save ke file .json — ini cara paling nyata untuk menyelamatkan
-      data kalau ganti HP, uninstall, atau membersihkan data browser.
+   3) Export/Import save ke file .json — cara manual menyelamatkan data kalau
+      ganti HP, uninstall, atau membersihkan data browser.
+   4) Opsional: Akun Online (lihat blok SISTEM SERVER AKUN di bawah) — kalau
+      dipakai, profil aktif disinkron ke backend server yang menyimpan tiap
+      akun sebagai file JSON sendiri-sendiri, supaya data antar akun online
+      juga tidak pernah tercampur. Tanpa akun online, semua tetap berjalan
+      100% lokal seperti biasa.
 ================================================================================ */
 const PROFILE_KEYS = ['highScore', 'coins', 'diamonds', 'unlocked', 'selectedSkin', 'questProgress', 'questCompleted', 'mantraCount', 'chapter2StageDone', 'chapter2IntroSeen', 'achievements', 'bestStreak', 'dailyDate', 'dailyChallengeId', 'dailyDone', 'dailyClaimed'];
 function profileStorageKey(profileId, key) { return `dino_p_${profileId}_${key}`; }
@@ -367,6 +369,148 @@ function renderAccountScreen() {
   const profile = getActiveProfile();
   document.getElementById('profilePillName').textContent = profile ? profile.name : 'Pemain';
   renderAchievements();
+  renderServerAcctUI();
+}
+
+/* ===================== SISTEM SERVER AKUN (ONLINE, OPSIONAL) =====================
+   Ini lapisan TAMBAHAN di atas sistem profil lokal di atas. Kalau pemain daftar/
+   masuk ke akun server, progres profil AKTIF di perangkat ini akan disinkronkan
+   ke server lewat backend Node.js sederhana (lihat folder /server). Backend
+   menyimpan tiap akun sebagai FILE JSON TERPISAH (server/data/saves/<username>.json)
+   sehingga data antar akun tidak pernah tercampur, dan kalau server tidak bisa
+   dihubungi (offline / belum di-deploy), game tetap jalan normal pakai data lokal —
+   sinkron server hanya percobaan tambahan, bukan syarat wajib untuk main.
+
+   Ganti SERVER_API_BASE di bawah ke alamat server kamu saat sudah online. */
+const SERVER_API_BASE = 'http://localhost:3000';
+const SERVER_TOKEN_KEY = 'dino_serverToken';
+const SERVER_USER_KEY = 'dino_serverUsername';
+
+function getServerToken() { return localStorage.getItem(SERVER_TOKEN_KEY); }
+function getServerUsername() { return localStorage.getItem(SERVER_USER_KEY); }
+function isServerLoggedIn() { return !!(getServerToken() && getServerUsername()); }
+
+async function serverApiCall(pathName, method, body, useAuth) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (useAuth) {
+    const token = getServerToken();
+    if (!token) throw new Error('Belum masuk akun online.');
+    headers['Authorization'] = 'Bearer ' + token;
+  }
+  const res = await fetch(SERVER_API_BASE + pathName, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined
+  });
+  let json = null;
+  try { json = await res.json(); } catch (e) { /* respons bukan JSON */ }
+  if (!res.ok || !json || json.ok === false) {
+    const msg = (json && json.error) || `Server merespons dengan status ${res.status}.`;
+    throw new Error(msg);
+  }
+  return json;
+}
+
+function setServerAcctMsg(text, kind) {
+  const el = document.getElementById('serverAcctMsg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'server-acct-msg' + (kind ? ' ' + kind : '');
+}
+
+function renderServerAcctUI() {
+  const loggedIn = isServerLoggedIn();
+  const outBox = document.getElementById('serverAcctLoggedOut');
+  const inBox = document.getElementById('serverAcctLoggedIn');
+  if (!outBox || !inBox) return;
+  outBox.style.display = loggedIn ? 'none' : '';
+  inBox.style.display = loggedIn ? '' : 'none';
+  if (loggedIn) document.getElementById('serverAcctName').textContent = getServerUsername();
+}
+
+/* Setelah login/daftar sukses: tarik data dari server dan timpa data profil lokal
+   yang sedang aktif, supaya akun server jadi acuan progres begitu dipakai. */
+async function pullServerDataIntoActiveProfile() {
+  const json = await serverApiCall('/api/data', 'GET', null, true);
+  const pid = getActiveProfileId();
+  if (!pid || !json.data) return;
+  const d = json.data;
+  const set = (key, val) => localStorage.setItem(profileStorageKey(pid, key), val);
+  set('highScore', String(d.highScore || 0));
+  set('coins', String(d.coins || 0));
+  set('diamonds', String(d.diamonds || 0));
+  set('unlocked', JSON.stringify(d.unlocked || [0]));
+  set('selectedSkin', String(d.selectedSkin || 0));
+  set('questProgress', JSON.stringify(d.questProgress || null));
+  set('questCompleted', String(!!d.questCompleted));
+  set('mantraCount', String(d.mantraCount || 0));
+  set('chapter2StageDone', String(!!d.chapter2StageDone));
+  set('chapter2IntroSeen', String(!!d.chapter2IntroSeen));
+  set('achievements', JSON.stringify(d.achievements || []));
+  set('bestStreak', String(d.bestStreak || 0));
+  set('dailyDate', d.dailyDate || '');
+  set('dailyChallengeId', d.dailyChallengeId || '');
+  set('dailyDone', String(!!d.dailyDone));
+  set('dailyClaimed', String(!!d.dailyClaimed));
+  data = loadData();
+  refreshLobbyStats();
+}
+
+/* Dorong data profil lokal aktif ke server. Gagal secara diam-diam (mis. server
+   belum di-deploy / tidak ada koneksi) supaya main offline tidak pernah terganggu. */
+let serverPushTimer = null;
+function scheduleServerPush() {
+  if (!isServerLoggedIn()) return;
+  clearTimeout(serverPushTimer);
+  serverPushTimer = setTimeout(pushServerDataNow, 800); // throttle biar tidak spam request tiap saveData()
+}
+async function pushServerDataNow() {
+  if (!isServerLoggedIn()) return;
+  try {
+    await serverApiCall('/api/data', 'POST', { data }, true);
+  } catch (e) {
+    // Offline / server belum jalan — abaikan, data tetap aman di localStorage.
+  }
+}
+
+async function handleServerRegister() {
+  const username = (document.getElementById('serverUsername').value || '').trim();
+  const password = document.getElementById('serverPassword').value || '';
+  setServerAcctMsg('Mendaftarkan akun...', '');
+  try {
+    const json = await serverApiCall('/api/register', 'POST', { username, password }, false);
+    localStorage.setItem(SERVER_TOKEN_KEY, json.token);
+    localStorage.setItem(SERVER_USER_KEY, json.username);
+    await pushServerDataNow(); // kirim progres profil lokal saat ini sebagai data awal akun baru
+    setServerAcctMsg(`Akun "${json.username}" berhasil dibuat & masuk.`, 'ok');
+    renderServerAcctUI();
+  } catch (e) {
+    setServerAcctMsg(e.message, 'error');
+  }
+}
+
+async function handleServerLogin() {
+  const username = (document.getElementById('serverUsername').value || '').trim();
+  const password = document.getElementById('serverPassword').value || '';
+  setServerAcctMsg('Masuk...', '');
+  try {
+    const json = await serverApiCall('/api/login', 'POST', { username, password }, false);
+    localStorage.setItem(SERVER_TOKEN_KEY, json.token);
+    localStorage.setItem(SERVER_USER_KEY, json.username);
+    await pullServerDataIntoActiveProfile();
+    setServerAcctMsg(`Berhasil masuk sebagai "${json.username}". Data disinkron.`, 'ok');
+    renderServerAcctUI();
+  } catch (e) {
+    setServerAcctMsg(e.message, 'error');
+  }
+}
+
+function handleServerLogout() {
+  serverApiCall('/api/logout', 'POST', null, true).catch(() => {});
+  localStorage.removeItem(SERVER_TOKEN_KEY);
+  localStorage.removeItem(SERVER_USER_KEY);
+  setServerAcctMsg('Sudah keluar dari akun online. Progres tetap aman secara lokal.', 'ok');
+  renderServerAcctUI();
 }
 
 /* ===================== PERSISTENT DATA (per profil aktif) ===================== */
@@ -416,6 +560,7 @@ function saveData() {
   set('dailyChallengeId', data.dailyChallengeId);
   set('dailyDone', String(data.dailyDone));
   set('dailyClaimed', String(data.dailyClaimed));
+  scheduleServerPush();
 }
 /* Simpan checkpoint story mode: dipanggil tiap kali sebuah bos berhasil dikalahkan,
    supaya progres tidak hilang saat halaman ditutup/di-reload.
@@ -3466,6 +3611,9 @@ document.getElementById('retryBtn').addEventListener('click', () => {
 document.getElementById('goLobbyBtn').addEventListener('click', () => showScreen('menu'));
 document.getElementById('profilePillBtn').addEventListener('click', () => showScreen('account'));
 document.getElementById('accountBackBtn').addEventListener('click', () => showScreen('menu'));
+document.getElementById('serverLoginBtn').addEventListener('click', handleServerLogin);
+document.getElementById('serverRegisterBtn').addEventListener('click', handleServerRegister);
+document.getElementById('serverLogoutBtn').addEventListener('click', handleServerLogout);
 document.getElementById('createProfileBtn').addEventListener('click', () => {
   const nameInput = document.getElementById('newProfileName');
   const pinInput = document.getElementById('newProfilePin');

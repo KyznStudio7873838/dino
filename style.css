@@ -731,6 +731,12 @@
   }
   .account-input:focus { outline: none; border-color: #8a4fd9; }
   .big-btn.small-btn { padding: 11px 30px; font-size: 13px; margin-top: 2px; }
+  .server-acct-btnrow { display: flex; gap: 8px; margin-bottom: 6px; }
+  .server-acct-btnrow .big-btn, .server-acct-btnrow .ghost-btn { flex: 1 1 0; margin-top: 2px; }
+  .server-acct-msg { font-size: 10.5px; min-height: 14px; margin: 2px 0 10px; text-align: center; }
+  .server-acct-msg.error { color: #c0392b; }
+  .server-acct-msg.ok { color: #2e9e5b; }
+  #serverAcctStatus { margin-bottom: 8px; }
   .achievement-list {
     display: flex;
     flex-wrap: wrap;

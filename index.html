@@ -173,10 +173,26 @@
     <div class="card">
       <h2>AKUN &amp; PROFIL</h2>
       <div class="account-note">
-        Game ini berjalan sepenuhnya offline di HP/browser ini, tanpa server online.
-        Profil di bawah hanya memisahkan data di perangkat ini. Supaya progres benar-benar
-        aman (misal ganti HP atau hapus data browser), gunakan tombol <b>Cadangkan Save</b>.
+        Profil di bawah memisahkan data di perangkat ini. Kalau mau progres ikut
+        ke HP/browser lain, masuk ke <b>Akun Online</b> di atas — tiap akun online
+        punya data tersimpan sendiri di server, tidak akan tercampur dengan akun lain.
+        Kamu juga tetap bisa pakai <b>Cadangkan Save</b> sebagai cara cadangan manual.
       </div>
+
+      <div class="account-section-title">🌐 AKUN ONLINE (SINKRON SERVER)</div>
+      <div id="serverAcctLoggedOut">
+        <input type="text" id="serverUsername" class="account-input" placeholder="Username (3-20 huruf/angka)" maxlength="20" autocomplete="username">
+        <input type="password" id="serverPassword" class="account-input" placeholder="Password (min. 6 karakter)" maxlength="64" autocomplete="current-password">
+        <div class="server-acct-btnrow">
+          <button class="big-btn small-btn" id="serverLoginBtn">MASUK</button>
+          <button class="ghost-btn small-btn" id="serverRegisterBtn">DAFTAR</button>
+        </div>
+      </div>
+      <div id="serverAcctLoggedIn" style="display:none;">
+        <div class="account-note" id="serverAcctStatus">Masuk sebagai <b id="serverAcctName"></b></div>
+        <button class="ghost-btn" id="serverLogoutBtn">KELUAR DARI AKUN ONLINE</button>
+      </div>
+      <div id="serverAcctMsg" class="server-acct-msg"></div>
 
       <div class="account-section-title">PROFIL DI PERANGKAT INI</div>
       <div id="profileList" class="profile-list"></div>

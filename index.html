@@ -90,11 +90,16 @@
     🎯
     <span class="daily-icon-dot" id="dailyIconDot"></span>
   </button>
+  <button class="settings-icon-btn" id="settingsIconBtn">⚙️</button>
+  <button class="news-icon-btn" id="newsIconBtn">
+    📰
+    <span class="daily-icon-dot"></span>
+  </button>
 
   <div class="title-banner">
     <div class="title-text-wrap">
       <h1 class="game-title">DINO RUNNER</h1>
-      <div class="title-version">KyznStudio · v2.5</div>
+      <div class="title-version" id="titleVersionText">KyznStudio · v2.5</div>
     </div>
   </div>
 
@@ -113,6 +118,33 @@
       <div class="daily-reward-line" id="dailyRewardLine"></div>
       <button class="daily-claim" id="dailyClaimBtn" style="display:none;">KLAIM</button>
     </div>
+  </div>
+</div>
+
+<!-- PENGATURAN -->
+<div id="settingsOverlay" class="overlay">
+  <div class="card daily-modal-card">
+    <button class="daily-modal-close" id="settingsCloseBtn">✕</button>
+    <h2>⚙️ PENGATURAN</h2>
+    <div class="settings-row">
+      <div class="settings-label">🎵 Musik Latar</div>
+      <button class="settings-toggle" id="musicToggleBtn">AKTIF</button>
+    </div>
+    <input type="range" class="settings-slider" id="musicVolSlider" min="0" max="1" step="0.05">
+    <div class="settings-row">
+      <div class="settings-label">🔊 Efek Suara</div>
+      <button class="settings-toggle" id="sfxToggleBtn">AKTIF</button>
+    </div>
+    <input type="range" class="settings-slider" id="sfxVolSlider" min="0" max="1" step="0.05">
+  </div>
+</div>
+
+<!-- BERITA / UPDATE LOG -->
+<div id="newsOverlay" class="overlay">
+  <div class="card daily-modal-card news-modal-card">
+    <button class="daily-modal-close" id="newsCloseBtn">✕</button>
+    <h2>📰 BERITA &amp; UPDATE</h2>
+    <div class="news-scroll" id="newsList"></div>
   </div>
 </div>
 

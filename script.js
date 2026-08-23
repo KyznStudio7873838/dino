@@ -38,6 +38,163 @@ const storyText = document.getElementById('storyText');
 const storyDots = document.getElementById('storyDots');
 const storyBtn = document.getElementById('storyBtn');
 
+/* ===================== AUDIO (musik & efek suara) =====================
+   Tidak pakai file .mp3 eksternal — musik & SFX dibuat langsung lewat
+   Web Audio API (osilator) supaya game tetap ringan & 100% offline
+   tanpa perlu file audio tambahan. Semua bisa diatur di menu Pengaturan. */
+const AudioMgr = (function () {
+  let actx = null;
+  let musicGain = null;
+  let sfxGain = null;
+  let musicTimer = null;
+  let musicPlaying = false;
+  let unlocked = false;
+  let noteIndex = 0;
+  let nextNoteTime = 0;
+
+  let musicOn = localStorage.getItem('dino_musicOn') !== 'false';
+  let sfxOn = localStorage.getItem('dino_sfxOn') !== 'false';
+  let musicVol = parseFloat(localStorage.getItem('dino_musicVol') ?? '0.45');
+  let sfxVol = parseFloat(localStorage.getItem('dino_sfxVol') ?? '0.7');
+  if (Number.isNaN(musicVol)) musicVol = 0.45;
+  if (Number.isNaN(sfxVol)) sfxVol = 0.7;
+
+  const NOTE_DUR = 0.28;
+  const MELODY = [392, 440, 523.25, 659.25, 523.25, 440, 392, 330, 392, 440, 523.25, 659.25, 783.99, 659.25, 523.25, 440];
+
+  function ensureCtx() {
+    if (!actx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      actx = new AC();
+      musicGain = actx.createGain();
+      musicGain.gain.value = musicVol;
+      musicGain.connect(actx.destination);
+      sfxGain = actx.createGain();
+      sfxGain.gain.value = sfxVol;
+      sfxGain.connect(actx.destination);
+    }
+    return actx;
+  }
+
+  function tone(freq, start, dur, type, dest, peak) {
+    const osc = actx.createOscillator();
+    const g = actx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, start);
+    g.gain.linearRampToValueAtTime(peak, start + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    osc.connect(g);
+    g.connect(dest);
+    osc.start(start);
+    osc.stop(start + dur + 0.03);
+  }
+
+  function sfx(name) {
+    if (!sfxOn) return;
+    const c = ensureCtx();
+    if (!c) return;
+    if (c.state === 'suspended') c.resume();
+    const t = c.currentTime;
+    switch (name) {
+      case 'jump':
+        tone(520, t, 0.12, 'square', sfxGain, 0.18);
+        tone(760, t + 0.05, 0.1, 'square', sfxGain, 0.14);
+        break;
+      case 'coin':
+        tone(880, t, 0.08, 'square', sfxGain, 0.18);
+        tone(1320, t + 0.05, 0.12, 'square', sfxGain, 0.16);
+        break;
+      case 'diamond':
+        tone(1046, t, 0.09, 'triangle', sfxGain, 0.2);
+        tone(1568, t + 0.06, 0.14, 'triangle', sfxGain, 0.18);
+        tone(2093, t + 0.12, 0.16, 'triangle', sfxGain, 0.14);
+        break;
+      case 'hit':
+        tone(180, t, 0.18, 'sawtooth', sfxGain, 0.22);
+        tone(90, t + 0.05, 0.2, 'sawtooth', sfxGain, 0.18);
+        break;
+      case 'gameover':
+        tone(400, t, 0.18, 'sawtooth', sfxGain, 0.2);
+        tone(300, t + 0.16, 0.18, 'sawtooth', sfxGain, 0.18);
+        tone(180, t + 0.34, 0.3, 'sawtooth', sfxGain, 0.18);
+        break;
+      case 'click':
+        tone(700, t, 0.05, 'square', sfxGain, 0.12);
+        break;
+      case 'claim':
+        tone(660, t, 0.08, 'square', sfxGain, 0.16);
+        tone(880, t + 0.07, 0.08, 'square', sfxGain, 0.16);
+        tone(1100, t + 0.14, 0.14, 'square', sfxGain, 0.16);
+        break;
+      case 'buy':
+        tone(500, t, 0.07, 'square', sfxGain, 0.16);
+        tone(750, t + 0.06, 0.1, 'square', sfxGain, 0.16);
+        break;
+      case 'unlock':
+        tone(600, t, 0.1, 'triangle', sfxGain, 0.18);
+        tone(900, t + 0.08, 0.1, 'triangle', sfxGain, 0.18);
+        tone(1200, t + 0.16, 0.16, 'triangle', sfxGain, 0.18);
+        break;
+    }
+  }
+
+  function scheduleMusic() {
+    if (!musicOn || !actx) return;
+    while (nextNoteTime < actx.currentTime + 0.6) {
+      const freq = MELODY[noteIndex % MELODY.length];
+      tone(freq, nextNoteTime, NOTE_DUR * 0.9, 'triangle', musicGain, 0.09);
+      tone(freq / 2, nextNoteTime, NOTE_DUR * 0.9, 'sine', musicGain, 0.05);
+      nextNoteTime += NOTE_DUR;
+      noteIndex++;
+    }
+  }
+
+  function startMusic() {
+    const c = ensureCtx();
+    if (!c || musicPlaying || !musicOn) return;
+    if (c.state === 'suspended') c.resume();
+    musicPlaying = true;
+    nextNoteTime = c.currentTime + 0.1;
+    noteIndex = 0;
+    if (musicTimer) clearInterval(musicTimer);
+    musicTimer = setInterval(scheduleMusic, 150);
+    scheduleMusic();
+  }
+
+  function stopMusic() {
+    musicPlaying = false;
+    if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+  }
+
+  function unlock() {
+    const c = ensureCtx();
+    if (!c) return;
+    if (c.state === 'suspended') c.resume();
+    unlocked = true;
+    if (musicOn) startMusic();
+  }
+
+  function setMusicOn(v) {
+    musicOn = v;
+    localStorage.setItem('dino_musicOn', String(v));
+    if (v) { if (unlocked) startMusic(); } else stopMusic();
+  }
+  function setSfxOn(v) { sfxOn = v; localStorage.setItem('dino_sfxOn', String(v)); }
+  function setMusicVol(v) { musicVol = v; localStorage.setItem('dino_musicVol', String(v)); if (musicGain) musicGain.gain.value = v; }
+  function setSfxVol(v) { sfxVol = v; localStorage.setItem('dino_sfxVol', String(v)); if (sfxGain) sfxGain.gain.value = v; }
+
+  return {
+    unlock, sfx,
+    get musicOn() { return musicOn; },
+    get sfxOn() { return sfxOn; },
+    get musicVol() { return musicVol; },
+    get sfxVol() { return sfxVol; },
+    setMusicOn, setSfxOn, setMusicVol, setSfxVol
+  };
+})();
+
 let GROUND_Y = 0;
 const GRAVITY = 0.6;
 const JUMP_FORCE = -12.5;
@@ -1446,12 +1603,14 @@ function qLoseLife() {
   if (qInvincible > 0) return;
   qLives--;
   qInvincible = 90;
+  AudioMgr.sfx('hit');
   flashRed();
   triggerShake();
   if (qLives <= 0) qEndGame();
 }
 
 function qEndGame() {
+  AudioMgr.sfx('gameover');
   document.getElementById('goStatsNormal').style.display = 'none';
   document.getElementById('goStatsQuest').style.display = '';
   document.getElementById('goTitle').textContent = 'PERJALANAN TERHENTI';
@@ -3126,6 +3285,7 @@ function jump() {
   if (!dino.jumping) {
     dino.jumping = true;
     dino.vy = mode === 'quest' ? JUMP_FORCE : currentJumpForce();
+    AudioMgr.sfx('jump');
   }
 }
 function releaseFlight() {
@@ -3246,6 +3406,7 @@ function renderShop() {
             data.diamonds -= s.cost;
             data.unlocked.push(id);
             data.selectedSkin = id;
+            AudioMgr.sfx('buy');
             saveData();
             renderShop();
           }
@@ -3253,11 +3414,13 @@ function renderShop() {
           data.coins -= s.cost;
           data.unlocked.push(id);
           data.selectedSkin = id;
+          AudioMgr.sfx('buy');
           saveData();
           renderShop();
         }
       } else if (action === 'select') {
         data.selectedSkin = id;
+        AudioMgr.sfx('click');
         saveData();
         renderShop();
       }
@@ -3380,6 +3543,7 @@ function loseLife() {
   lives--;
   invincible = 90;
   coinStreak = 0;
+  AudioMgr.sfx('hit');
   flashRed();
   triggerShake();
   if (lives <= 0) endGame();
@@ -3520,6 +3684,7 @@ document.getElementById('dailyClaimBtn').addEventListener('click', () => {
   if (data.dailyDone && !data.dailyClaimed) {
     data.coins += challenge.reward;
     data.dailyClaimed = true;
+    AudioMgr.sfx('claim');
     saveData();
     renderDailyChallenge();
     refreshLobbyStats();
@@ -3536,12 +3701,124 @@ document.getElementById('dailyOverlay').addEventListener('click', (e) => {
   if (e.target.id === 'dailyOverlay') e.target.classList.remove('active');
 });
 
+/* ===================== PENGATURAN (musik & suara) ===================== */
+function refreshSettingsUI() {
+  const musicBtn = document.getElementById('musicToggleBtn');
+  const sfxBtn = document.getElementById('sfxToggleBtn');
+  if (!musicBtn || !sfxBtn) return;
+  musicBtn.textContent = AudioMgr.musicOn ? 'AKTIF' : 'NONAKTIF';
+  musicBtn.classList.toggle('off', !AudioMgr.musicOn);
+  sfxBtn.textContent = AudioMgr.sfxOn ? 'AKTIF' : 'NONAKTIF';
+  sfxBtn.classList.toggle('off', !AudioMgr.sfxOn);
+  document.getElementById('musicVolSlider').value = AudioMgr.musicVol;
+  document.getElementById('sfxVolSlider').value = AudioMgr.sfxVol;
+}
+document.getElementById('settingsIconBtn').addEventListener('click', () => {
+  refreshSettingsUI();
+  document.getElementById('settingsOverlay').classList.add('active');
+});
+document.getElementById('settingsCloseBtn').addEventListener('click', () => {
+  document.getElementById('settingsOverlay').classList.remove('active');
+});
+document.getElementById('settingsOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'settingsOverlay') e.target.classList.remove('active');
+});
+document.getElementById('musicToggleBtn').addEventListener('click', () => {
+  AudioMgr.setMusicOn(!AudioMgr.musicOn);
+  refreshSettingsUI();
+});
+document.getElementById('sfxToggleBtn').addEventListener('click', () => {
+  const turningOn = !AudioMgr.sfxOn;
+  AudioMgr.setSfxOn(turningOn);
+  refreshSettingsUI();
+  if (turningOn) AudioMgr.sfx('click');
+});
+document.getElementById('musicVolSlider').addEventListener('input', (e) => {
+  AudioMgr.setMusicVol(parseFloat(e.target.value));
+});
+document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
+  AudioMgr.setSfxVol(parseFloat(e.target.value));
+});
+
+/* ===================== BERITA / UPDATE LOG =====================
+   Setiap kali game ini dirilis dengan fitur/perbaikan baru, cukup tambah
+   satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
+   Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
+   titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
+const APP_VERSION = '2.6';
+const NEWS_LIST = [
+  {
+    version: '2.6',
+    date: '23 Agu 2026',
+    title: 'Update 2.6 — Musik & Pengaturan',
+    items: [
+      '🎵 Musik latar & efek suara baru di seluruh game.',
+      '⚙️ Menu PENGATURAN baru: atur musik & efek suara (nyala/mati + volume).',
+      '📰 Fitur BERITA baru (ini!) yang otomatis memberi tahu update terbaru.',
+      '🎯 Tantangan Harian sekarang tampil lewat jendela popup tersendiri.',
+      '🌈 Perbaikan tampilan judul lobi supaya benar-benar di tengah layar.',
+      '🏷️ Nama studio diperbarui menjadi KyznStudio.'
+    ]
+  },
+  {
+    version: '2.5',
+    date: '1 Agu 2026',
+    title: 'Update 2.5 — Tantangan Harian',
+    items: [
+      '🎯 Tantangan Harian baru yang berganti otomatis setiap hari.',
+      '🛍️ Perbaikan tampilan toko & lobi.'
+    ]
+  }
+];
+function renderNews() {
+  const wrap = document.getElementById('newsList');
+  if (!wrap) return;
+  wrap.innerHTML = NEWS_LIST.map((n, i) => `
+    <div class="news-entry${i === 0 ? ' latest' : ''}">
+      <div class="news-entry-head">
+        ${i === 0 ? '<span class="news-badge-new">BARU</span>' : ''}
+        <span class="news-entry-title">${n.title}</span>
+      </div>
+      <div class="news-entry-date">v${n.version} · ${n.date}</div>
+      <ul class="news-entry-items">${n.items.map(it => `<li>${it}</li>`).join('')}</ul>
+    </div>
+  `).join('');
+}
+function checkNewsUnread() {
+  const lastSeen = localStorage.getItem('dino_lastSeenNews') || '';
+  const latest = NEWS_LIST[0].version;
+  const btn = document.getElementById('newsIconBtn');
+  const unread = lastSeen !== latest;
+  if (btn) btn.classList.toggle('has-reward', unread);
+  return unread;
+}
+function markNewsRead() {
+  localStorage.setItem('dino_lastSeenNews', NEWS_LIST[0].version);
+  checkNewsUnread();
+}
+document.getElementById('newsIconBtn').addEventListener('click', () => {
+  renderNews();
+  document.getElementById('newsOverlay').classList.add('active');
+  markNewsRead();
+});
+document.getElementById('newsCloseBtn').addEventListener('click', () => {
+  document.getElementById('newsOverlay').classList.remove('active');
+});
+document.getElementById('newsOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'newsOverlay') e.target.classList.remove('active');
+});
+document.getElementById('introVersion').textContent = 'v' + APP_VERSION;
+document.getElementById('titleVersionText').textContent = 'KyznStudio · v' + APP_VERSION;
+checkNewsUnread();
+
 function endGame() {
+  AudioMgr.sfx('gameover');
   const isNewBest = Math.floor(score) > data.highScore;
   if (isNewBest) data.highScore = Math.floor(score);
   data.coins += runCoins;
   data.diamonds += runDiamonds;
   const newlyUnlocked = checkAchievements();
+  if (newlyUnlocked.length) AudioMgr.sfx('unlock');
   const dailyJustDone = checkDailyChallenge({ score: Math.floor(score), coins: runCoins, diamonds: runDiamonds, streak: runBestStreak, noHit: lives === 3 });
   saveData();
   document.getElementById('goStatsNormal').style.display = '';
@@ -4156,6 +4433,7 @@ function update() {
     if (Math.sqrt(dx * dx + dy * dy) < c.r + 18) {
       c.collected = true;
       runCoins += coinMultiplier();
+      AudioMgr.sfx('coin');
       registerStreak();
       spawnSparkles(c.x, c.y, '#ffd23c', 7);
     }
@@ -4170,6 +4448,7 @@ function update() {
     if (Math.sqrt(dx * dx + dy * dy) < b.r + 18) {
       b.collected = true;
       applyBuff(b.type);
+      AudioMgr.sfx('unlock');
       spawnSparkles(b.x, b.y, BUFF_TYPES[b.type].color, 10);
     }
   }
@@ -4190,6 +4469,7 @@ function update() {
     if (Math.sqrt(dx * dx + dy * dy) < dm.r + 18) {
       dm.collected = true;
       runDiamonds += 1;
+      AudioMgr.sfx('diamond');
       spawnPopup(dino.x + dino.w / 2, dino.y - 10, '+1 💎', '#7fe3ff');
       registerStreak();
       spawnSparkles(dm.x, dm.y, '#7fe3ff', 12);
@@ -4316,6 +4596,13 @@ function loop() {
 }
 
 /* ===================== INIT ===================== */
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('button');
+  if (!el) return;
+  if (el.classList.contains('skin-btn') || el.id === 'dailyClaimBtn') return;
+  AudioMgr.sfx('click');
+}, true);
+
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 initClouds();
@@ -4333,6 +4620,7 @@ requestAnimationFrame(lobbyPreviewLoop);
   const dismiss = () => {
     if (dismissed) return;
     dismissed = true;
+    AudioMgr.unlock();
     introEl.classList.add('hide');
     setTimeout(() => { introEl.style.display = 'none'; }, 650);
   };

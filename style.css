@@ -298,6 +298,42 @@
   }
   .daily-icon-btn.has-reward .daily-icon-dot { display: block; }
 
+  /* Ikon kotak kecil pengaturan, di bawah ikon tantangan harian */
+  .settings-icon-btn {
+    position: absolute;
+    top: 192px; left: 16px;
+    z-index: 6;
+    width: 42px; height: 42px;
+    border-radius: 14px;
+    border: 2px solid rgba(255,255,255,0.75);
+    background: linear-gradient(160deg, #6fa8dc, #2f5f8f);
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.4);
+    transition: transform 0.08s ease;
+  }
+  .settings-icon-btn:active { transform: scale(0.92); }
+
+  /* Ikon kotak kecil berita/update, di bawah ikon pengaturan */
+  .news-icon-btn {
+    position: absolute;
+    top: 242px; left: 16px;
+    z-index: 6;
+    width: 42px; height: 42px;
+    border-radius: 14px;
+    border: 2px solid rgba(255,255,255,0.75);
+    background: linear-gradient(160deg, #e06fa8, #8f2f5f);
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.4);
+    transition: transform 0.08s ease;
+  }
+  .news-icon-btn:active { transform: scale(0.92); }
+  .news-icon-btn .daily-icon-dot { display: none; }
+  .news-icon-btn.has-reward .daily-icon-dot { display: block; }
+
   /* Banner judul: hanya teks, benar-benar di tengah layar.
      Dipusatkan pakai auto-margin (bukan transform), supaya tidak
      bentrok dengan animation fadeSlideUp yang juga memakai transform. */
@@ -427,6 +463,72 @@
     transition: transform 0.08s ease;
   }
   .daily-claim:active { transform: translateY(2px); box-shadow: 0 1px 0 #c9971f; }
+
+  /* Pengaturan */
+  .settings-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 16px;
+  }
+  .settings-row:first-of-type { margin-top: 2px; }
+  .settings-label { font-size: 12px; font-weight: bold; color: #2a2a2a; }
+  .settings-toggle {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 6px 14px;
+    border: none;
+    border-radius: 14px;
+    background: linear-gradient(180deg, #7ed957, #3a7d3a);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 3px 0 #2c5c2c;
+    transition: transform 0.08s ease;
+  }
+  .settings-toggle.off { background: linear-gradient(180deg, #a3a3a3, #6b6b6b); box-shadow: 0 3px 0 #4a4a4a; }
+  .settings-toggle:active { transform: translateY(2px); }
+  .settings-slider {
+    width: 100%;
+    margin-top: 8px;
+    accent-color: #ff9f43;
+  }
+
+  /* Berita / Update log */
+  .news-modal-card { max-width: 360px; }
+  .news-scroll {
+    width: 100%;
+    max-height: 56vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .news-entry {
+    width: 100%;
+    text-align: left;
+    background: rgba(0,0,0,0.05);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-top: 10px;
+    box-sizing: border-box;
+  }
+  .news-entry:first-child { margin-top: 0; }
+  .news-entry.latest { background: rgba(126,217,87,0.16); border: 1.5px solid rgba(126,217,87,0.5); }
+  .news-entry-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .news-badge-new {
+    font-size: 9px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    background: #ff5c5c;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 8px;
+  }
+  .news-entry-title { font-size: 12.5px; font-weight: bold; color: #2a2a2a; }
+  .news-entry-date { font-size: 10px; color: #777; margin: 4px 0 8px; }
+  .news-entry-items { margin: 0; padding-left: 18px; }
+  .news-entry-items li { font-size: 11.5px; color: #333; line-height: 1.6; }
 
   .big-btn {
     font-family: 'Courier New', monospace;
@@ -1021,7 +1123,9 @@
   #lobby.active .lobby-topbar { animation: fadeSlideUp 0.35s ease both; }
   #lobby.active .shop-icon-btn { animation: fadeSlideUp 0.35s ease both 0.06s; }
   #lobby.active .daily-icon-btn { animation: fadeSlideUp 0.35s ease both 0.1s; }
-  #lobby.active .title-banner { animation: fadeSlideUp 0.35s ease both 0.14s; }
+  #lobby.active .settings-icon-btn { animation: fadeSlideUp 0.35s ease both 0.12s; }
+  #lobby.active .news-icon-btn { animation: fadeSlideUp 0.35s ease both 0.14s; }
+  #lobby.active .title-banner { animation: fadeSlideUp 0.35s ease both 0.18s; }
   #lobby.active .mode-fab { animation: fadeSlideUp 0.35s ease both 0.2s; }
   #modeSelect.active .mode-row { animation: fadeSlideUp 0.3s ease both 0.05s; }
   #modeSelect.active #questContinueBtn { animation: fadeSlideUp 0.3s ease both 0.1s; }

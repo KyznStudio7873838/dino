@@ -3487,19 +3487,32 @@ function renderDailyChallenge() {
   const card = document.getElementById('dailyCard');
   if (!card) return;
   const challenge = getDailyChallenge();
-  document.getElementById('dailyDesc').textContent = `${challenge.icon} ${challenge.desc}`;
+  document.getElementById('dailyIcon').textContent = challenge.icon;
+  document.getElementById('dailyDesc').textContent = challenge.desc;
   const claimBtn = document.getElementById('dailyClaimBtn');
+  const badge = document.getElementById('dailyStatusBadge');
+  const rewardLine = document.getElementById('dailyRewardLine');
+  const iconBtn = document.getElementById('dailyIconBtn');
   card.classList.toggle('done', data.dailyDone);
   if (data.dailyClaimed) {
     claimBtn.style.display = 'none';
     card.classList.add('claimed');
+    badge.textContent = '✅ SUDAH DIKLAIM';
+    rewardLine.textContent = `🪙 +${challenge.reward} (terklaim)`;
+    if (iconBtn) iconBtn.classList.remove('has-reward');
   } else if (data.dailyDone) {
     card.classList.remove('claimed');
     claimBtn.style.display = 'block';
     claimBtn.textContent = `KLAIM 🪙+${challenge.reward}`;
+    badge.textContent = '✅ SELESAI';
+    rewardLine.textContent = `Hadiah: 🪙 ${challenge.reward} koin`;
+    if (iconBtn) iconBtn.classList.add('has-reward');
   } else {
     card.classList.remove('claimed');
     claimBtn.style.display = 'none';
+    badge.textContent = '⏳ BELUM SELESAI';
+    rewardLine.textContent = `Hadiah: 🪙 ${challenge.reward} koin`;
+    if (iconBtn) iconBtn.classList.remove('has-reward');
   }
 }
 document.getElementById('dailyClaimBtn').addEventListener('click', () => {
@@ -3511,6 +3524,16 @@ document.getElementById('dailyClaimBtn').addEventListener('click', () => {
     renderDailyChallenge();
     refreshLobbyStats();
   }
+});
+document.getElementById('dailyIconBtn').addEventListener('click', () => {
+  renderDailyChallenge();
+  document.getElementById('dailyOverlay').classList.add('active');
+});
+document.getElementById('dailyOverlayCloseBtn').addEventListener('click', () => {
+  document.getElementById('dailyOverlay').classList.remove('active');
+});
+document.getElementById('dailyOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'dailyOverlay') e.target.classList.remove('active');
 });
 
 function endGame() {

@@ -86,26 +86,12 @@
   </div>
 
   <button class="shop-icon-btn" id="shopBtnLobby">🛒</button>
+  <button class="daily-icon-btn" id="dailyIconBtn">
+    🎯
+    <span class="daily-icon-dot" id="dailyIconDot"></span>
+  </button>
 
   <div class="title-banner">
-    <svg class="title-rainbow-svg" viewBox="0 0 400 130" preserveAspectRatio="xMidYMax meet">
-      <path d="M 30 122 A 168 168 0 0 1 370 122" fill="none" stroke="#ff5c5c" stroke-width="9"/>
-      <path d="M 39 122 A 157 157 0 0 1 361 122" fill="none" stroke="#ffb14f" stroke-width="9"/>
-      <path d="M 48 122 A 146 146 0 0 1 352 122" fill="none" stroke="#ffe75a" stroke-width="9"/>
-      <path d="M 57 122 A 135 135 0 0 1 343 122" fill="none" stroke="#7ed957" stroke-width="9"/>
-      <path d="M 66 122 A 124 124 0 0 1 334 122" fill="none" stroke="#5ec8ff" stroke-width="9"/>
-      <path d="M 75 122 A 113 113 0 0 1 325 122" fill="none" stroke="#b06fff" stroke-width="9"/>
-      <g transform="translate(8,92)">
-        <ellipse cx="0" cy="20" rx="27" ry="17" fill="#fff"/>
-        <ellipse cx="21" cy="11" rx="21" ry="17" fill="#fff"/>
-        <ellipse cx="-17" cy="13" rx="17" ry="13" fill="#fff"/>
-      </g>
-      <g transform="translate(392,92)">
-        <ellipse cx="0" cy="20" rx="27" ry="17" fill="#fff"/>
-        <ellipse cx="-21" cy="11" rx="21" ry="17" fill="#fff"/>
-        <ellipse cx="17" cy="13" rx="17" ry="13" fill="#fff"/>
-      </g>
-    </svg>
     <div class="title-text-wrap">
       <h1 class="game-title">DINO RUNNER</h1>
       <div class="title-version">KEYZN STUDIO · v2.5</div>
@@ -113,14 +99,19 @@
   </div>
 
   <button class="mode-fab" id="modeFabBtn">🎮 MODE</button>
+</div>
 
-  <div class="scroll-wrap">
-    <div class="card lobby-card">
-      <div class="daily-card" id="dailyCard">
-        <div class="daily-head">🎯 TANTANGAN HARIAN</div>
-        <div class="daily-desc" id="dailyDesc">-</div>
-        <button class="daily-claim" id="dailyClaimBtn" style="display:none;">KLAIM</button>
-      </div>
+<!-- TANTANGAN HARIAN (popup) -->
+<div id="dailyOverlay" class="overlay">
+  <div class="card daily-modal-card">
+    <button class="daily-modal-close" id="dailyOverlayCloseBtn">✕</button>
+    <h2>🎯 TANTANGAN HARIAN</h2>
+    <div class="daily-card" id="dailyCard">
+      <div class="daily-status-badge" id="dailyStatusBadge">BELUM SELESAI</div>
+      <div class="daily-head" id="dailyIcon">🎯</div>
+      <div class="daily-desc" id="dailyDesc">-</div>
+      <div class="daily-reward-line" id="dailyRewardLine"></div>
+      <button class="daily-claim" id="dailyClaimBtn" style="display:none;">KLAIM</button>
     </div>
   </div>
 </div>

@@ -257,7 +257,7 @@
   /* Ikon toko di bawah avatar */
   .shop-icon-btn {
     position: absolute;
-    top: 74px; left: 16px;
+    top: 92px; left: 16px;
     z-index: 6;
     width: 42px; height: 42px;
     border-radius: 14px;
@@ -271,27 +271,49 @@
   }
   .shop-icon-btn:active { transform: scale(0.92); }
 
-  /* Banner judul: awan + pelangi + teks */
+  /* Ikon kotak kecil tantangan harian, di bawah ikon toko */
+  .daily-icon-btn {
+    position: absolute;
+    top: 142px; left: 16px;
+    z-index: 6;
+    width: 42px; height: 42px;
+    border-radius: 14px;
+    border: 2px solid rgba(255,255,255,0.75);
+    background: linear-gradient(160deg, #ffb35e, #c2650f);
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.4);
+    transition: transform 0.08s ease;
+  }
+  .daily-icon-btn:active { transform: scale(0.92); }
+  .daily-icon-dot {
+    position: absolute;
+    top: -3px; right: -3px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #ff5c5c;
+    border: 2px solid rgba(20,20,24,0.9);
+    display: none;
+  }
+  .daily-icon-btn.has-reward .daily-icon-dot { display: block; }
+
+  /* Banner judul: hanya teks, benar-benar di tengah layar */
   .title-banner {
     position: absolute;
-    top: 8vh; left: 50%;
-    transform: translateX(-50%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
     width: min(92vw, 400px);
     z-index: 4;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     pointer-events: none;
   }
-  .title-rainbow-svg {
-    width: 100%;
-    height: auto;
-    display: block;
-    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.25));
-  }
   .title-text-wrap {
-    margin-top: -34%;
     text-align: center;
+    width: 100%;
   }
   .game-title {
     font-size: clamp(20px, 7.2vw, 27px);
@@ -331,13 +353,39 @@
   }
   .mode-fab:active { transform: translateY(4px); box-shadow: 0 1px 0 #c25c0f; }
 
+  .daily-modal-card {
+    max-width: 340px;
+    position: relative;
+    padding-top: 30px;
+  }
+  .daily-modal-card h2 {
+    margin: 0 0 14px;
+    font-size: 15px;
+    letter-spacing: 1px;
+    text-align: center;
+    color: #2a2a2a;
+  }
+  .daily-modal-close {
+    position: absolute;
+    top: 12px; right: 12px;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0,0,0,0.08);
+    color: #2a2a2a;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .daily-modal-close:active { transform: scale(0.9); }
+
   .daily-card {
     width: 100%;
     background: linear-gradient(135deg, rgba(255,159,67,0.22), rgba(20,20,24,0.5));
     border: 2px solid rgba(255,159,67,0.55);
     border-radius: 16px;
-    padding: 10px 14px;
-    margin-bottom: 18px;
+    padding: 16px 14px 14px;
     text-align: center;
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
@@ -345,9 +393,21 @@
   }
   .daily-card.done { border-color: #7ed957; background: linear-gradient(135deg, rgba(126,217,87,0.22), rgba(20,20,24,0.5)); }
   .daily-card.claimed { opacity: 0.65; }
-  .daily-head { font-size: 10px; font-weight: bold; letter-spacing: 1px; color: #ffb35e; margin-bottom: 4px; }
-  .daily-card.done .daily-head { color: #a0f07a; }
-  .daily-desc { font-size: 11px; color: #fff; line-height: 1.4; }
+  .daily-status-badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.15);
+    color: #ffb35e;
+    margin-bottom: 10px;
+  }
+  .daily-card.done .daily-status-badge { color: #1a3d0f; background: #a0f07a; }
+  .daily-head { font-size: 26px; margin-bottom: 6px; }
+  .daily-desc { font-size: 12px; color: #fff; line-height: 1.5; }
+  .daily-reward-line { font-size: 11px; color: #ffd76b; font-weight: bold; margin-top: 8px; }
   .daily-claim {
     font-family: 'Courier New', monospace;
     font-size: 11px;
@@ -957,8 +1017,8 @@
   }
   #lobby.active .lobby-topbar { animation: fadeSlideUp 0.35s ease both; }
   #lobby.active .shop-icon-btn { animation: fadeSlideUp 0.35s ease both 0.06s; }
-  #lobby.active .title-banner { animation: fadeSlideUp 0.35s ease both 0.1s; }
-  #lobby.active .daily-card { animation: fadeSlideUp 0.35s ease both 0.16s; }
+  #lobby.active .daily-icon-btn { animation: fadeSlideUp 0.35s ease both 0.1s; }
+  #lobby.active .title-banner { animation: fadeSlideUp 0.35s ease both 0.14s; }
   #lobby.active .mode-fab { animation: fadeSlideUp 0.35s ease both 0.2s; }
   #modeSelect.active .mode-row { animation: fadeSlideUp 0.3s ease both 0.05s; }
   #modeSelect.active #questContinueBtn { animation: fadeSlideUp 0.3s ease both 0.1s; }

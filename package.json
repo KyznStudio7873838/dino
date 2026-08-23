@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Server akun sederhana untuk Dino Runner. Menyimpan tiap akun sebagai file JSON terpisah supaya data antar pemain tidak tercampur.",
   "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "start": "node server.js"
   },

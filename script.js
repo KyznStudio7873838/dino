@@ -356,47 +356,20 @@ function handleImportSaveFile(file) {
   reader.readAsText(file);
 }
 function renderAccountScreen() {
-  const activeId = getActiveProfileId();
-  const list = loadProfileList();
-  const wrap = document.getElementById('profileList');
-  wrap.innerHTML = '';
-  list.forEach(p => {
-    const isActive = p.id === activeId;
-    const row = document.createElement('div');
-    row.className = 'profile-item' + (isActive ? ' active' : '');
-    row.innerHTML = `
-      <div class="p-avatar">${isActive ? '👑' : '🦖'}</div>
-      <div class="p-info">
-        <div class="p-name">${p.name}${p.pinHash ? ' 🔒' : ''}</div>
-        <div class="p-meta">${isActive ? 'Profil aktif' : 'Tap untuk pindah'}</div>
-      </div>
-      <div class="p-actions">
-        ${isActive ? '<button class="p-btn current" disabled>AKTIF</button>' : `<button class="p-btn switch" data-id="${p.id}" data-action="switch">PAKAI</button>`}
-        <button class="p-btn del" data-id="${p.id}" data-action="del">HAPUS</button>
-      </div>`;
-    wrap.appendChild(row);
-  });
-  wrap.querySelectorAll('button[data-action]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset.id;
-      if (btn.dataset.action === 'switch') switchProfile(id);
-      else if (btn.dataset.action === 'del') deleteProfile(id);
-    });
-  });
   const profile = getActiveProfile();
   document.getElementById('profilePillName').textContent = profile ? profile.name : 'Pemain';
   renderAchievements();
   renderServerAcctUI();
 }
 
-/* ===================== SISTEM SERVER AKUN (ONLINE, OPSIONAL) =====================
-   Ini lapisan TAMBAHAN di atas sistem profil lokal di atas. Kalau pemain daftar/
-   masuk ke akun server, progres profil AKTIF di perangkat ini akan disinkronkan
-   ke server lewat backend Node.js sederhana (lihat folder /server). Backend
-   menyimpan tiap akun sebagai FILE JSON TERPISAH (server/data/saves/<username>.json)
-   sehingga data antar akun tidak pernah tercampur, dan kalau server tidak bisa
-   dihubungi (offline / belum di-deploy), game tetap jalan normal pakai data lokal —
-   sinkron server hanya percobaan tambahan, bukan syarat wajib untuk main.
+/* ===================== SISTEM AKUN (WAJIB) =====================
+   Sekarang akun online WAJIB untuk main — pemain harus daftar/masuk lewat
+   Gerbang Akun (#authGate) sebelum masuk ke lobby. Backend Node.js sederhana
+   (lihat folder /server) menyimpan tiap akun sebagai FILE JSON TERPISAH
+   (server/data/saves/<username>.json) sehingga data antar akun tidak pernah
+   tercampur. Satu akun online = satu profil lokal (namanya disamakan dengan
+   username) yang dipakai sebagai penyimpanan kerja di perangkat ini, supaya
+   fungsi loadData()/saveData() yang sudah ada tetap berjalan seperti biasa.
 
    Ganti SERVER_API_BASE di bawah ke alamat server kamu saat sudah online. */
 const SERVER_API_BASE = 'http://localhost:3000';
@@ -411,14 +384,19 @@ async function serverApiCall(pathName, method, body, useAuth) {
   const headers = { 'Content-Type': 'application/json' };
   if (useAuth) {
     const token = getServerToken();
-    if (!token) throw new Error('Belum masuk akun online.');
+    if (!token) throw new Error('Belum masuk akun.');
     headers['Authorization'] = 'Bearer ' + token;
   }
-  const res = await fetch(SERVER_API_BASE + pathName, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined
-  });
+  let res;
+  try {
+    res = await fetch(SERVER_API_BASE + pathName, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined
+    });
+  } catch (e) {
+    throw new Error('Tidak bisa terhubung ke server. Pastikan server sudah jalan dan alamatnya benar.');
+  }
   let json = null;
   try { json = await res.json(); } catch (e) { /* respons bukan JSON */ }
   if (!res.ok || !json || json.ok === false) {
@@ -428,25 +406,20 @@ async function serverApiCall(pathName, method, body, useAuth) {
   return json;
 }
 
-function setServerAcctMsg(text, kind) {
-  const el = document.getElementById('serverAcctMsg');
-  if (!el) return;
-  el.textContent = text || '';
-  el.className = 'server-acct-msg' + (kind ? ' ' + kind : '');
+/* Satu akun online = satu profil lokal dengan nama sama persis dengan
+   username. Kalau belum ada, buat baru; kalau sudah ada, jadikan aktif. */
+function ensureLocalProfileForAccount(username) {
+  const list = loadProfileList();
+  const existing = list.find(p => p.name === username);
+  if (existing) {
+    localStorage.setItem('dinoActiveProfileId', existing.id);
+    return existing.id;
+  }
+  return createProfile(username, null);
 }
 
-function renderServerAcctUI() {
-  const loggedIn = isServerLoggedIn();
-  const outBox = document.getElementById('serverAcctLoggedOut');
-  const inBox = document.getElementById('serverAcctLoggedIn');
-  if (!outBox || !inBox) return;
-  outBox.style.display = loggedIn ? 'none' : '';
-  inBox.style.display = loggedIn ? '' : 'none';
-  if (loggedIn) document.getElementById('serverAcctName').textContent = getServerUsername();
-}
-
-/* Setelah login/daftar sukses: tarik data dari server dan timpa data profil lokal
-   yang sedang aktif, supaya akun server jadi acuan progres begitu dipakai. */
+/* Setelah login/daftar sukses: tarik data dari server dan timpa data profil
+   lokal yang terikat ke akun ini, supaya akun server jadi acuan progres. */
 async function pullServerDataIntoActiveProfile() {
   const json = await serverApiCall('/api/data', 'GET', null, true);
   const pid = getActiveProfileId();
@@ -474,7 +447,7 @@ async function pullServerDataIntoActiveProfile() {
 }
 
 /* Dorong data profil lokal aktif ke server. Gagal secara diam-diam (mis. server
-   belum di-deploy / tidak ada koneksi) supaya main offline tidak pernah terganggu. */
+   belum di-deploy / tidak ada koneksi) supaya progres tetap aman di localStorage. */
 let serverPushTimer = null;
 function scheduleServerPush() {
   if (!isServerLoggedIn()) return;
@@ -490,44 +463,77 @@ async function pushServerDataNow() {
   }
 }
 
-async function handleServerRegister() {
-  const username = (document.getElementById('serverUsername').value || '').trim();
-  const password = document.getElementById('serverPassword').value || '';
-  setServerAcctMsg('Mendaftarkan akun...', '');
-  try {
-    const json = await serverApiCall('/api/register', 'POST', { username, password }, false);
-    localStorage.setItem(SERVER_TOKEN_KEY, json.token);
-    localStorage.setItem(SERVER_USER_KEY, json.username);
-    await pushServerDataNow(); // kirim progres profil lokal saat ini sebagai data awal akun baru
-    setServerAcctMsg(`Akun "${json.username}" berhasil dibuat & masuk.`, 'ok');
-    renderServerAcctUI();
-  } catch (e) {
-    setServerAcctMsg(e.message, 'error');
-  }
+/* ---------- Layar Akun (ringkas) ---------- */
+function renderServerAcctUI() {
+  const nameEl = document.getElementById('acctUsername');
+  if (nameEl) nameEl.textContent = getServerUsername() || 'Pemain';
 }
 
-async function handleServerLogin() {
-  const username = (document.getElementById('serverUsername').value || '').trim();
-  const password = document.getElementById('serverPassword').value || '';
-  setServerAcctMsg('Masuk...', '');
+/* ---------- Gerbang Akun (wajib sebelum masuk lobby) ---------- */
+let authGateMode = 'login'; // 'login' | 'register'
+function setAuthGateMsg(text, kind) {
+  const el = document.getElementById('authGateMsg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'server-acct-msg' + (kind ? ' ' + kind : '');
+}
+function setAuthGateMode(mode) {
+  authGateMode = mode;
+  const title = document.getElementById('authGateTitle');
+  const sub = document.getElementById('authGateSub');
+  const submitBtn = document.getElementById('authGateSubmitBtn');
+  const switchBtn = document.getElementById('authGateSwitchBtn');
+  if (mode === 'register') {
+    title.textContent = 'DAFTAR AKUN';
+    sub.textContent = 'Buat akun baru — progresmu tersimpan aman dan bisa dipakai di HP lain.';
+    submitBtn.textContent = 'DAFTAR';
+    switchBtn.textContent = 'Sudah punya akun? Masuk';
+  } else {
+    title.textContent = 'MASUK AKUN';
+    sub.textContent = 'Masuk buat lanjutkan progresmu.';
+    submitBtn.textContent = 'MASUK';
+    switchBtn.textContent = 'Belum punya akun? Daftar';
+  }
+  setAuthGateMsg('', '');
+}
+function showAuthGate() {
+  document.getElementById('authGate').classList.add('active');
+}
+function hideAuthGate() {
+  document.getElementById('authGate').classList.remove('active');
+}
+async function handleAuthGateSubmit() {
+  const username = (document.getElementById('authGateUsername').value || '').trim();
+  const password = document.getElementById('authGatePassword').value || '';
+  if (!username || !password) { setAuthGateMsg('Isi username dan password dulu ya.', 'error'); return; }
+  AudioMgr.unlock();
+  const isRegister = authGateMode === 'register';
+  setAuthGateMsg(isRegister ? 'Mendaftarkan akun...' : 'Masuk...', '');
   try {
-    const json = await serverApiCall('/api/login', 'POST', { username, password }, false);
+    const json = await serverApiCall(isRegister ? '/api/register' : '/api/login', 'POST', { username, password }, false);
     localStorage.setItem(SERVER_TOKEN_KEY, json.token);
     localStorage.setItem(SERVER_USER_KEY, json.username);
-    await pullServerDataIntoActiveProfile();
-    setServerAcctMsg(`Berhasil masuk sebagai "${json.username}". Data disinkron.`, 'ok');
+    ensureLocalProfileForAccount(json.username);
+    data = loadData();
+    if (isRegister) { await pushServerDataNow(); }
+    else { await pullServerDataIntoActiveProfile(); }
+    refreshLobbyStats();
     renderServerAcctUI();
+    hideAuthGate();
   } catch (e) {
-    setServerAcctMsg(e.message, 'error');
+    setAuthGateMsg(e.message, 'error');
   }
 }
-
-function handleServerLogout() {
+function handleAcctLogout() {
+  if (!confirm('Keluar dari akun ini? Progresmu tetap tersimpan di server, tinggal masuk lagi kapan saja.')) return;
   serverApiCall('/api/logout', 'POST', null, true).catch(() => {});
   localStorage.removeItem(SERVER_TOKEN_KEY);
   localStorage.removeItem(SERVER_USER_KEY);
-  setServerAcctMsg('Sudah keluar dari akun online. Progres tetap aman secara lokal.', 'ok');
-  renderServerAcctUI();
+  showScreen('menu');
+  setAuthGateMode('login');
+  document.getElementById('authGateUsername').value = '';
+  document.getElementById('authGatePassword').value = '';
+  showAuthGate();
 }
 
 /* ===================== PERSISTENT DATA (per profil aktif) ===================== */
@@ -3628,20 +3634,13 @@ document.getElementById('retryBtn').addEventListener('click', () => {
 document.getElementById('goLobbyBtn').addEventListener('click', () => showScreen('menu'));
 document.getElementById('profilePillBtn').addEventListener('click', () => showScreen('account'));
 document.getElementById('accountBackBtn').addEventListener('click', () => showScreen('menu'));
-document.getElementById('serverLoginBtn').addEventListener('click', handleServerLogin);
-document.getElementById('serverRegisterBtn').addEventListener('click', handleServerRegister);
-document.getElementById('serverLogoutBtn').addEventListener('click', handleServerLogout);
-document.getElementById('createProfileBtn').addEventListener('click', () => {
-  const nameInput = document.getElementById('newProfileName');
-  const pinInput = document.getElementById('newProfilePin');
-  const name = nameInput.value.trim();
-  const pin = pinInput.value.trim();
-  if (pin && !/^\d{4,6}$/.test(pin)) { alert('PIN harus 4-6 digit angka, atau kosongkan saja.'); return; }
-  createProfile(name, pin || null);
-  nameInput.value = ''; pinInput.value = '';
-  data = loadData();
-  refreshLobbyStats();
-  renderAccountScreen();
+document.getElementById('acctLogoutBtn').addEventListener('click', handleAcctLogout);
+document.getElementById('authGateSubmitBtn').addEventListener('click', handleAuthGateSubmit);
+document.getElementById('authGateSwitchBtn').addEventListener('click', () => {
+  setAuthGateMode(authGateMode === 'login' ? 'register' : 'login');
+});
+document.getElementById('authGatePassword').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') handleAuthGateSubmit();
 });
 document.getElementById('exportSaveBtn').addEventListener('click', exportSave);
 document.getElementById('importSaveBtn').addEventListener('click', () => {
@@ -3653,15 +3652,15 @@ document.getElementById('importSaveFile').addEventListener('change', (e) => {
   e.target.value = '';
 });
 document.getElementById('resetDataBtn').addEventListener('click', () => {
-  const profile = getActiveProfile();
-  const label = profile ? `profil "${profile.name}"` : 'profil ini';
-  if (confirm(`Hapus semua data tersimpan pada ${label} (koin, skin, progres story mode)? Tindakan ini tidak bisa dibatalkan.`)) {
+  if (confirm('Hapus semua data tersimpan pada akun ini (koin, skin, progres story mode)? Tindakan ini tidak bisa dibatalkan.')) {
     PROFILE_KEYS.forEach(k => localStorage.removeItem(profileStorageKey(getActiveProfileId(), k)));
     data = loadData();
     refreshLobbyStats();
     renderAccountScreen();
+    scheduleServerPush();
   }
 });
+
 
 /* ===================== GAME FLOW ===================== */
 function startGame() {
@@ -4799,3 +4798,25 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => {});
   });
 }
+
+/* ===================== GERBANG AKUN (cek saat game dibuka) ===================== */
+(function initAuthGate() {
+  setAuthGateMode('login');
+  if (!isServerLoggedIn()) {
+    showAuthGate();
+    return;
+  }
+  // Sudah pernah login sebelumnya: pastikan profil lokal terikat & sinkron ulang.
+  ensureLocalProfileForAccount(getServerUsername());
+  data = loadData();
+  refreshLobbyStats();
+  renderServerAcctUI();
+  pullServerDataIntoActiveProfile().catch(() => {
+    // Sesi kedaluwarsa / server tidak terjangkau saat buka game — minta login ulang.
+    localStorage.removeItem(SERVER_TOKEN_KEY);
+    localStorage.removeItem(SERVER_USER_KEY);
+    setAuthGateMsg('Sesi berakhir, silakan masuk lagi.', 'error');
+    showAuthGate();
+  });
+})();
+

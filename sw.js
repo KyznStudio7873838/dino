@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dino-runner-v12-reset';
+const CACHE_NAME = 'dino-runner-v13-wajib-akun';
 const ASSETS = [
   './',
   './index.html',

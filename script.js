@@ -1,4 +1,21 @@
 /* ===================== SETUP ===================== */
+
+/* Reset total SEKALI JALAN: menghapus semua data lama pemain (profil, skor,
+   koin, setelan, status login, dll) supaya semua pemain mulai dari nol bersih
+   di update ini. Setelah dijalankan sekali, flag di bawah mencegah ini
+   terulang lagi di kunjungan berikutnya. */
+(function hardResetAllGameDataOnce() {
+  const RESET_FLAG = 'dino_hardResetDone_v2_8';
+  if (localStorage.getItem(RESET_FLAG) === '1') return;
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.toLowerCase().startsWith('dino')) keysToRemove.push(k);
+  }
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  localStorage.setItem(RESET_FLAG, '1');
+})();
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 

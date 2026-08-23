@@ -3,6 +3,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 const lobby = document.getElementById('lobby');
+const modeSelect = document.getElementById('modeSelect');
 const shop = document.getElementById('shop');
 const account = document.getElementById('account');
 const gameover = document.getElementById('gameover');
@@ -3138,6 +3139,7 @@ canvas.addEventListener('mouseup', releaseFlight);
 /* ===================== SCREEN MANAGEMENT ===================== */
 function showScreen(name) {
   lobby.classList.remove('active');
+  modeSelect.classList.remove('active');
   shop.classList.remove('active');
   account.classList.remove('active');
   gameover.classList.remove('active');
@@ -3146,6 +3148,7 @@ function showScreen(name) {
   attackBtn.classList.remove('ready');
   if (name !== 'playing') bossBarWrap.style.display = 'none';
   if (name === 'menu') { dino.w = 40; dino.h = 40; resetDino(); lobby.classList.add('active'); refreshLobbyStats(); }
+  if (name === 'modeSelect') { modeSelect.classList.add('active'); refreshLobbyStats(); }
   if (name === 'shop') { shop.classList.add('active'); renderShop(); }
   if (name === 'account') { account.classList.add('active'); renderAccountScreen(); }
   if (name === 'gameover') { gameover.classList.add('active'); }
@@ -3290,6 +3293,8 @@ document.getElementById('modeQuestBtn').addEventListener('click', () => {
 });
 document.getElementById('questContinueBtn').addEventListener('click', () => startQuest(false));
 document.getElementById('shopBtnLobby').addEventListener('click', () => showScreen('shop'));
+document.getElementById('modeFabBtn').addEventListener('click', () => showScreen('modeSelect'));
+document.getElementById('modeSelectBackBtn').addEventListener('click', () => showScreen('menu'));
 document.getElementById('shopBackBtn').addEventListener('click', () => showScreen('menu'));
 document.getElementById('retryBtn').addEventListener('click', () => {
   if (mode === 'quest') { inChapter2 ? startChapter2() : startQuest(false); }

@@ -223,45 +223,113 @@
     z-index: 1;
     pointer-events: none;
   }
-  #lobby h1 {
-    font-size: clamp(20px, 7vw, 26px);
-    letter-spacing: 3px;
-    text-align: center;
-    margin-bottom: 4px;
-    background: linear-gradient(180deg, #ffffff, #ffd9a0);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    text-shadow: 0 2px 14px rgba(0,0,0,0.55);
-    filter: drop-shadow(0 1px 0 rgba(0,0,0,0.3));
-  }
-  #lobbyVersionTag {
-    text-align: center;
-    font-size: 9px;
-    letter-spacing: 2px;
-    color: rgba(255,255,255,0.55);
-    margin-bottom: 14px;
-  }
-  .stat-row {
+
+  /* Bar atas: avatar + skor/koin/berlian */
+  .lobby-topbar {
+    position: absolute;
+    top: 16px; left: 16px; right: 16px;
+    z-index: 6;
     display: flex;
+    align-items: center;
     gap: 10px;
-    margin-bottom: 22px;
-    flex-wrap: wrap;
-    justify-content: center;
   }
-  #lobby .stat-card {
-    background: rgba(20,20,24,0.4);
-    border: 2px solid rgba(255,255,255,0.2);
-    border-radius: 14px;
-    padding: 10px 18px;
-    text-align: center;
-    min-width: 92px;
-    box-shadow: 0 3px 0 rgba(0,0,0,0.25);
+  .lobby-hud {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .lobby-hud-pill {
+    background: rgba(20,20,24,0.5);
+    border: 1.5px solid rgba(255,255,255,0.3);
+    border-radius: 16px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 4px;
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
   }
-  #lobby .stat-card .val { font-size: 18px; font-weight: bold; color: #fff; }
-  #lobby .stat-card .lbl { font-size: 10px; color: rgba(255,255,255,0.75); margin-top: 2px; letter-spacing: 0.5px; }
+
+  /* Ikon toko di bawah avatar */
+  .shop-icon-btn {
+    position: absolute;
+    top: 74px; left: 16px;
+    z-index: 6;
+    width: 42px; height: 42px;
+    border-radius: 14px;
+    border: 2px solid rgba(255,255,255,0.75);
+    background: linear-gradient(160deg, #7ed957, #3a7d3a);
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.4);
+    transition: transform 0.08s ease;
+  }
+  .shop-icon-btn:active { transform: scale(0.92); }
+
+  /* Banner judul: awan + pelangi + teks */
+  .title-banner {
+    position: absolute;
+    top: 8vh; left: 50%;
+    transform: translateX(-50%);
+    width: min(92vw, 400px);
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+  }
+  .title-rainbow-svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.25));
+  }
+  .title-text-wrap {
+    margin-top: -34%;
+    text-align: center;
+  }
+  .game-title {
+    font-size: clamp(20px, 7.2vw, 27px);
+    letter-spacing: 2px;
+    color: #fff;
+    -webkit-text-stroke: 2.5px #1a1a1a;
+    paint-order: stroke fill;
+    text-shadow: 0 3px 0 #1a1a1a, 0 5px 10px rgba(0,0,0,0.4);
+    margin: 0;
+  }
+  .title-version {
+    margin-top: 4px;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    color: #1a1a1a;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+  }
+
+  /* Tombol MODE mengambang */
+  .mode-fab {
+    position: absolute;
+    bottom: 22px; left: 16px;
+    z-index: 6;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 13px 22px;
+    background: linear-gradient(180deg, #ffb35e, #ff7a1a);
+    color: #fff;
+    border: none;
+    border-radius: 26px;
+    cursor: pointer;
+    box-shadow: 0 5px 0 #c25c0f, inset 0 1px 0 rgba(255,255,255,0.4);
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
+  }
+  .mode-fab:active { transform: translateY(4px); box-shadow: 0 1px 0 #c25c0f; }
 
   .daily-card {
     width: 100%;
@@ -378,11 +446,9 @@
   }
   .reset-link:active { color: #e5484d; }
 
-  /* Avatar profil bulat, mengambang di kiri atas layar lobby */
+  /* Avatar profil bulat, di dalam bar atas lobby */
   .profile-avatar-btn {
-    position: absolute;
-    top: 16px; left: 16px;
-    z-index: 6;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -889,15 +955,13 @@
     0% { opacity: 0; transform: translateY(16px); }
     100% { opacity: 1; transform: translateY(0); }
   }
-  #lobby.active .profile-avatar-btn { animation: fadeSlideUp 0.35s ease both; }
-  #lobby.active h1 { animation: fadeSlideUp 0.35s ease both 0.04s; }
-  #lobby.active #lobbyVersionTag { animation: fadeSlideUp 0.35s ease both 0.08s; }
-  #lobby.active .stat-row { animation: fadeSlideUp 0.35s ease both 0.12s; }
+  #lobby.active .lobby-topbar { animation: fadeSlideUp 0.35s ease both; }
+  #lobby.active .shop-icon-btn { animation: fadeSlideUp 0.35s ease both 0.06s; }
+  #lobby.active .title-banner { animation: fadeSlideUp 0.35s ease both 0.1s; }
   #lobby.active .daily-card { animation: fadeSlideUp 0.35s ease both 0.16s; }
-  #lobby.active #playBtn { animation: fadeSlideUp 0.35s ease both 0.2s; }
-  #lobby.active .mode-row { animation: fadeSlideUp 0.35s ease both 0.22s; }
-  #lobby.active #questContinueBtn { animation: fadeSlideUp 0.35s ease both 0.24s; }
-  #lobby.active #shopBtnLobby { animation: fadeSlideUp 0.35s ease both 0.26s; }
+  #lobby.active .mode-fab { animation: fadeSlideUp 0.35s ease both 0.2s; }
+  #modeSelect.active .mode-row { animation: fadeSlideUp 0.3s ease both 0.05s; }
+  #modeSelect.active #questContinueBtn { animation: fadeSlideUp 0.3s ease both 0.1s; }
 
   @keyframes camShake {
     0%, 100% { transform: translate(0, 0); }

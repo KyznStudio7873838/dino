@@ -51,7 +51,7 @@ const JUMP_FORCE = -12.5;
    3) Export/Import save ke file .json — ini cara paling nyata untuk menyelamatkan
       data kalau ganti HP, uninstall, atau membersihkan data browser.
 ================================================================================ */
-const PROFILE_KEYS = ['highScore', 'coins', 'diamonds', 'unlocked', 'selectedSkin', 'questProgress', 'questCompleted', 'mantraCount', 'chapter2StageDone', 'chapter2IntroSeen', 'achievements', 'bestStreak'];
+const PROFILE_KEYS = ['highScore', 'coins', 'diamonds', 'unlocked', 'selectedSkin', 'questProgress', 'questCompleted', 'mantraCount', 'chapter2StageDone', 'chapter2IntroSeen', 'achievements', 'bestStreak', 'dailyDate', 'dailyChallengeId', 'dailyDone', 'dailyClaimed'];
 function profileStorageKey(profileId, key) { return `dino_p_${profileId}_${key}`; }
 function simpleHash(str) {
   let h = 0;
@@ -231,7 +231,11 @@ function loadData() {
     chapter2StageDone: get('chapter2StageDone', 'false') === 'true',
     chapter2IntroSeen: get('chapter2IntroSeen', 'false') === 'true',
     achievements,
-    bestStreak: parseInt(get('bestStreak', '0'), 10)
+    bestStreak: parseInt(get('bestStreak', '0'), 10),
+    dailyDate: get('dailyDate', ''),
+    dailyChallengeId: get('dailyChallengeId', ''),
+    dailyDone: get('dailyDone', 'false') === 'true',
+    dailyClaimed: get('dailyClaimed', 'false') === 'true'
   };
 }
 let data = loadData();
@@ -250,6 +254,10 @@ function saveData() {
   set('chapter2IntroSeen', String(data.chapter2IntroSeen));
   set('achievements', JSON.stringify(data.achievements));
   set('bestStreak', String(data.bestStreak));
+  set('dailyDate', data.dailyDate);
+  set('dailyChallengeId', data.dailyChallengeId);
+  set('dailyDone', String(data.dailyDone));
+  set('dailyClaimed', String(data.dailyClaimed));
 }
 /* Simpan checkpoint story mode: dipanggil tiap kali sebuah bos berhasil dikalahkan,
    supaya progres tidak hilang saat halaman ditutup/di-reload.
@@ -305,6 +313,13 @@ const SKINS = [
     body: '#bfe9ff', head: '#8fd3f0', belly: '#eafcff', eye: '#1c2440',
     spikeStyle: 'fin', pattern: 'scales', tailStyle: 'fin', horn: true, hornColor: '#5ec8ff',
     shimmer: true, shimmerColor: '#eafcff', shimmerDark: '#8fd3f0', affinity: 'magnet' },
+  { id: 8, name: 'Hutan Malam', cost: 260,
+    body: '#2f5f38', head: '#1e3f26', belly: '#a8d9a0', eye: '#c9ffb0',
+    spikeStyle: 'crown', pattern: 'spots', tailStyle: 'spiked', horn: false, affinity: 'slowmo' },
+  { id: 9, name: 'Pasir Senja', cost: 90, costType: 'diamond',
+    body: '#e89a4f', head: '#c76f2c', belly: '#ffe3b0', eye: '#fff',
+    spikeStyle: 'double', pattern: 'stripes', tailStyle: 'normal', horn: true, hornColor: '#c76f2c',
+    shimmer: true, shimmerColor: '#ffd9a0', shimmerDark: '#c76f2c', affinity: 'shield' },
 ];
 function getSkin(id) { return SKINS.find(s => s.id === id) || SKINS[0]; }
 
@@ -2434,6 +2449,7 @@ let score = 0;
 let runCoins = 0;
 let runDiamonds = 0;
 let coinStreak = 0;
+let runBestStreak = 0;
 let lives = 3;
 let invincible = 0;
 let gameSpeed = 6;
@@ -3149,6 +3165,7 @@ function refreshLobbyStats() {
   document.getElementById('statBest').textContent = String(data.highScore).padStart(4, '0');
   document.getElementById('statCoins').textContent = data.coins;
   document.getElementById('statDiamonds').textContent = data.diamonds;
+  renderDailyChallenge();
   renderLobbyDino();
   const profile = getActiveProfile();
   document.getElementById('profilePillName').textContent = profile ? profile.name : 'Pemain';
@@ -3330,6 +3347,7 @@ function startGame() {
   runCoins = 0;
   runDiamonds = 0;
   coinStreak = 0;
+  runBestStreak = 0;
   diamonds = [];
   lives = 3;
   invincible = 0;
@@ -3365,6 +3383,7 @@ function loseLife() {
 function registerStreak() {
   coinStreak++;
   if (coinStreak > data.bestStreak) data.bestStreak = coinStreak;
+  if (coinStreak > runBestStreak) runBestStreak = coinStreak;
   if (coinStreak > 0 && coinStreak % 10 === 0) {
     const bonus = 5 * (coinStreak / 10);
     runCoins += bonus;
@@ -3425,12 +3444,77 @@ function renderAchievements() {
   });
 }
 
+/* ===================== TANTANGAN HARIAN ===================== */
+const DAILY_CHALLENGES = [
+  { id: 'score300',  icon: '🏁', desc: 'Capai skor 300 dalam satu lari',              reward: 40, check: st => st.score >= 300 },
+  { id: 'coins25',   icon: '🪙', desc: 'Kumpulkan 25 koin dalam satu lari',            reward: 40, check: st => st.coins >= 25 },
+  { id: 'diamonds3', icon: '💎', desc: 'Kumpulkan 3 berlian dalam satu lari',          reward: 50, check: st => st.diamonds >= 3 },
+  { id: 'streak15',  icon: '🔥', desc: 'Capai combo streak 15 tanpa kena rintangan',   reward: 45, check: st => st.streak >= 15 },
+  { id: 'noHit',     icon: '🛡', desc: 'Capai skor 200+ tanpa kehilangan nyawa',       reward: 60, check: st => st.score >= 200 && st.noHit }
+];
+function todayString() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+}
+function getDailyChallenge() {
+  const t = todayString();
+  if (data.dailyDate !== t) {
+    data.dailyDate = t;
+    let hash = 0;
+    for (let i = 0; i < t.length; i++) hash = (hash * 31 + t.charCodeAt(i)) >>> 0;
+    data.dailyChallengeId = DAILY_CHALLENGES[hash % DAILY_CHALLENGES.length].id;
+    data.dailyDone = false;
+    data.dailyClaimed = false;
+    saveData();
+  }
+  return DAILY_CHALLENGES.find(c => c.id === data.dailyChallengeId) || DAILY_CHALLENGES[0];
+}
+function checkDailyChallenge(runStats) {
+  if (data.dailyDone) return false;
+  const challenge = getDailyChallenge();
+  if (challenge.check(runStats)) {
+    data.dailyDone = true;
+    return true;
+  }
+  return false;
+}
+function renderDailyChallenge() {
+  const card = document.getElementById('dailyCard');
+  if (!card) return;
+  const challenge = getDailyChallenge();
+  document.getElementById('dailyDesc').textContent = `${challenge.icon} ${challenge.desc}`;
+  const claimBtn = document.getElementById('dailyClaimBtn');
+  card.classList.toggle('done', data.dailyDone);
+  if (data.dailyClaimed) {
+    claimBtn.style.display = 'none';
+    card.classList.add('claimed');
+  } else if (data.dailyDone) {
+    card.classList.remove('claimed');
+    claimBtn.style.display = 'block';
+    claimBtn.textContent = `KLAIM 🪙+${challenge.reward}`;
+  } else {
+    card.classList.remove('claimed');
+    claimBtn.style.display = 'none';
+  }
+}
+document.getElementById('dailyClaimBtn').addEventListener('click', () => {
+  const challenge = getDailyChallenge();
+  if (data.dailyDone && !data.dailyClaimed) {
+    data.coins += challenge.reward;
+    data.dailyClaimed = true;
+    saveData();
+    renderDailyChallenge();
+    refreshLobbyStats();
+  }
+});
+
 function endGame() {
   const isNewBest = Math.floor(score) > data.highScore;
   if (isNewBest) data.highScore = Math.floor(score);
   data.coins += runCoins;
   data.diamonds += runDiamonds;
   const newlyUnlocked = checkAchievements();
+  const dailyJustDone = checkDailyChallenge({ score: Math.floor(score), coins: runCoins, diamonds: runDiamonds, streak: runBestStreak, noHit: lives === 3 });
   saveData();
   document.getElementById('goStatsNormal').style.display = '';
   document.getElementById('goStatsQuest').style.display = 'none';
@@ -3445,9 +3529,17 @@ function endGame() {
   document.getElementById('goBest').parentElement.classList.toggle('highlight-row', isNewBest);
   const achEl = document.getElementById('goAchievements');
   if (achEl) {
+    const lines = [];
     if (newlyUnlocked.length) {
+      lines.push('🏆 PRESTASI BARU: ' + newlyUnlocked.map(a => `${a.icon} ${a.label}`).join(' &nbsp;·&nbsp; '));
+    }
+    if (dailyJustDone) {
+      const c = getDailyChallenge();
+      lines.push(`🎯 TANTANGAN HARIAN SELESAI! Klaim 🪙+${c.reward} di lobby.`);
+    }
+    if (lines.length) {
       achEl.style.display = '';
-      achEl.innerHTML = '🏆 PRESTASI BARU: ' + newlyUnlocked.map(a => `${a.icon} ${a.label}`).join(' &nbsp;·&nbsp; ');
+      achEl.innerHTML = lines.join('<br>');
     } else {
       achEl.style.display = 'none';
     }

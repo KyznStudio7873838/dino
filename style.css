@@ -520,10 +520,11 @@
     color: #8a6300;
     font-weight: bold;
     margin-bottom: 16px;
-    background: #fff7e0;
+    background: linear-gradient(180deg, #fffdf5, #fff3d6);
     border: 2px solid #ffd76b;
     border-radius: 20px;
     padding: 6px 16px;
+    box-shadow: 0 2px 6px rgba(240,220,160,0.35);
   }
   #skinGrid {
     display: grid;
@@ -539,6 +540,7 @@
     padding: 12px 8px;
     text-align: center;
     box-shadow: 0 3px 0 #e3e3e3;
+    transition: transform 0.1s ease;
   }
   .skin-card.selected { border-color: #3a7d3a; }
   .skin-swatch {
@@ -557,10 +559,11 @@
     border: none;
     cursor: pointer;
     width: 100%;
-    transition: transform 0.08s ease;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
   }
   .skin-btn:active { transform: scale(0.95); }
-  .skin-btn.buy { background: linear-gradient(180deg, #ffe08a, #ffd76b); color: #4a3400; }
+  .skin-btn.buy { background: linear-gradient(180deg, #ffe08a, #ffd76b); color: #4a3400; box-shadow: 0 2px 6px rgba(255,215,107,0.5); }
+  .skin-btn.buy-diamond { background: linear-gradient(180deg, #9fe4ff, #5ec8ff); color: #0a3d5c; box-shadow: 0 2px 6px rgba(94,200,255,0.5); }
   .skin-btn.select { background: linear-gradient(180deg, #4d9450, #3a7d3a); color: #fff; }
   .skin-btn.selected { background: linear-gradient(180deg, #8ee968, #7ed957); color: #113600; }
   .skin-btn.locked { background: #e3e3e3; color: #999; }

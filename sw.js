@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dino-runner-v3';
+const CACHE_NAME = 'dino-runner-v4';
 const ASSETS = [
   './',
   './index.html',

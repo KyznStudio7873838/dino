@@ -301,6 +301,10 @@ const SKINS = [
     spikeStyle: 'flame', pattern: 'stars', tailStyle: 'spiked', horn: true, hornStyle: 'twin', hornColor: '#8a5a10',
     wings: true, wingColor: '#e8ac1f', wingLight: '#fff3b0',
     shimmer: true, shimmerColor: '#fff6cf', shimmerDark: '#c98a12', affinity: 'all' },
+  { id: 7, name: 'Kristal Berlian', cost: 60, costType: 'diamond',
+    body: '#bfe9ff', head: '#8fd3f0', belly: '#eafcff', eye: '#1c2440',
+    spikeStyle: 'fin', pattern: 'scales', tailStyle: 'fin', horn: true, hornColor: '#5ec8ff',
+    shimmer: true, shimmerColor: '#eafcff', shimmerDark: '#8fd3f0', affinity: 'magnet' },
 ];
 function getSkin(id) { return SKINS.find(s => s.id === id) || SKINS[0]; }
 
@@ -318,6 +322,22 @@ let activeBuffs = { speed: 0, jump: 0, coin2x: 0, shield: 0, magnet: 0, slowmo: 
 let dinoTrail = [];
 let dustParticles = [];
 let popups = [];
+let sparkles = [];
+function spawnSparkles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const spd = 1.4 + Math.random() * 2.6;
+    sparkles.push({
+      x, y,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd - 0.6,
+      life: 26 + Math.random() * 14,
+      maxLife: 40,
+      size: 2 + Math.random() * 2.4,
+      color
+    });
+  }
+}
 
 function skinAffinityMatches(type) {
   const s = getSkin(data.selectedSkin);
@@ -3160,12 +3180,15 @@ function refreshLobbyStats() {
 }
 
 function renderShop() {
-  document.getElementById('shopCoins').textContent = `🪙 ${data.coins} KOIN`;
+  document.getElementById('shopCoins').innerHTML = `🪙 ${data.coins} KOIN &nbsp;·&nbsp; 💎 ${data.diamonds} BERLIAN`;
   const grid = document.getElementById('skinGrid');
   grid.innerHTML = '';
   SKINS.forEach(s => {
     const unlocked = data.unlocked.includes(s.id);
     const selected = data.selectedSkin === s.id;
+    const costType = s.costType || 'coin';
+    const wallet = costType === 'diamond' ? data.diamonds : data.coins;
+    const icon = costType === 'diamond' ? '💎' : '🪙';
     const card = document.createElement('div');
     card.className = 'skin-card' + (selected ? ' selected' : '');
     let btnHtml;
@@ -3176,8 +3199,8 @@ function renderShop() {
     } else if (s.rewardOnly) {
       btnHtml = `<button class="skin-btn locked" disabled>🔒 ${s.rewardLabel || 'HADIAH KHUSUS'}</button>`;
     } else {
-      const afford = data.coins >= s.cost;
-      btnHtml = `<button class="skin-btn ${afford ? 'buy' : 'locked'}" data-id="${s.id}" data-action="buy" ${afford ? '' : 'disabled'}>BELI 🪙${s.cost}</button>`;
+      const afford = wallet >= s.cost;
+      btnHtml = `<button class="skin-btn ${afford ? 'buy' : 'locked'}${costType === 'diamond' ? ' buy-diamond' : ''}" data-id="${s.id}" data-action="buy" ${afford ? '' : 'disabled'}>BELI ${icon}${s.cost}</button>`;
     }
     const swatchCanvas = document.createElement('canvas');
     swatchCanvas.width = 112; swatchCanvas.height = 88;
@@ -3197,7 +3220,16 @@ function renderShop() {
       const action = btn.dataset.action;
       if (action === 'buy') {
         const s = getSkin(id);
-        if (data.coins >= s.cost) {
+        const costType = s.costType || 'coin';
+        if (costType === 'diamond') {
+          if (data.diamonds >= s.cost) {
+            data.diamonds -= s.cost;
+            data.unlocked.push(id);
+            data.selectedSkin = id;
+            saveData();
+            renderShop();
+          }
+        } else if (data.coins >= s.cost) {
           data.coins -= s.cost;
           data.unlocked.push(id);
           data.selectedSkin = id;
@@ -3292,6 +3324,7 @@ function startGame() {
   popups = [];
   dinoTrail = [];
   dustParticles = [];
+  sparkles = [];
   activeBuffs = { speed: 0, jump: 0, coin2x: 0, shield: 0, magnet: 0, slowmo: 0 };
   score = 0;
   runCoins = 0;
@@ -3336,6 +3369,7 @@ function registerStreak() {
     const bonus = 5 * (coinStreak / 10);
     runCoins += bonus;
     spawnPopup(dino.x + dino.w / 2, dino.y - 26, `STREAK x${coinStreak}! +${bonus}`, '#ff9f43');
+    spawnSparkles(dino.x + dino.w / 2, dino.y - 10, '#ff9f43', 16);
   }
 }
 
@@ -3618,17 +3652,36 @@ function drawCoin(c) {
   ctx.save();
   ctx.translate(c.x, c.y);
   const scaleX = Math.abs(Math.cos(c.spin));
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, c.r * 2.1);
+  g.addColorStop(0, 'rgba(255,210,60,0.45)');
+  g.addColorStop(1, 'rgba(255,210,60,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, 0, c.r * 2.1, 0, Math.PI * 2); ctx.fill();
   ctx.scale(Math.max(scaleX, 0.15), 1);
+  const cg = ctx.createRadialGradient(-c.r * 0.3, -c.r * 0.3, 0, 0, 0, c.r);
+  cg.addColorStop(0, '#fff2b8');
+  cg.addColorStop(0.55, '#ffd23c');
+  cg.addColorStop(1, '#e0a91f');
   ctx.beginPath();
   ctx.arc(0, 0, c.r, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffd23c';
+  ctx.fillStyle = cg;
   ctx.fill();
   ctx.strokeStyle = '#c9971f';
   ctx.lineWidth = 2;
   ctx.stroke();
-  ctx.fillStyle = '#fff2b8';
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
   ctx.beginPath();
-  ctx.arc(-3, -3, c.r * 0.35, 0, Math.PI * 2);
+  ctx.arc(-3, -3, c.r * 0.32, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSparkle(s) {
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, s.life / s.maxLife);
+  ctx.fillStyle = s.color;
+  ctx.beginPath();
+  ctx.arc(s.x, s.y, s.size * (s.life / s.maxLife), 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
@@ -3984,6 +4037,7 @@ function update() {
       c.collected = true;
       runCoins += coinMultiplier();
       registerStreak();
+      spawnSparkles(c.x, c.y, '#ffd23c', 7);
     }
   }
 
@@ -3996,6 +4050,7 @@ function update() {
     if (Math.sqrt(dx * dx + dy * dy) < b.r + 18) {
       b.collected = true;
       applyBuff(b.type);
+      spawnSparkles(b.x, b.y, BUFF_TYPES[b.type].color, 10);
     }
   }
 
@@ -4017,8 +4072,14 @@ function update() {
       runDiamonds += 1;
       spawnPopup(dino.x + dino.w / 2, dino.y - 10, '+1 💎', '#7fe3ff');
       registerStreak();
+      spawnSparkles(dm.x, dm.y, '#7fe3ff', 12);
     }
   }
+
+  sparkles.forEach(s => {
+    s.x += s.vx; s.y += s.vy; s.vy += 0.08; s.life--;
+  });
+  sparkles = sparkles.filter(s => s.life > 0);
 
   ['speed', 'jump', 'coin2x', 'shield', 'magnet', 'slowmo'].forEach(k => { if (activeBuffs[k] > 0) activeBuffs[k]--; });
 
@@ -4109,6 +4170,7 @@ function draw() {
   buffs.forEach(drawBuffItem);
   obstacles.forEach(drawObstacle);
   drawDino();
+  sparkles.forEach(drawSparkle);
   drawPopups();
   if (weather === 'rain') drawRain();
   if (weather === 'kabut') drawFog();

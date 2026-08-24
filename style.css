@@ -92,34 +92,6 @@
   }
   .overlay.active { display: flex; }
 
-  /* ===== GERBANG AKUN WAJIB ===== */
-  #authGate {
-    z-index: 950;
-    background: radial-gradient(ellipse at 50% 20%, rgba(111,191,79,0.18), rgba(0,0,0,0.94) 70%);
-  }
-  .auth-gate-card { max-width: 380px; width: 90vw; }
-  .auth-tab-row {
-    display: flex;
-    gap: 8px;
-    margin: 14px 0 12px;
-  }
-  .auth-tab-btn {
-    flex: 1;
-    padding: 10px 6px;
-    border-radius: 10px;
-    border: 1px solid rgba(255,255,255,0.18);
-    background: rgba(255,255,255,0.06);
-    color: rgba(255,255,255,0.7);
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-  }
-  .auth-tab-btn.active {
-    background: #6fbf4f;
-    border-color: #6fbf4f;
-    color: #06210a;
-  }
-
   /* ===== INTRO / SPLASH SCREEN ===== */
   #intro {
     position: fixed; inset: 0;

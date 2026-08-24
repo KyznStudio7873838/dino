@@ -526,8 +526,112 @@ function handleServerLogout() {
   serverApiCall('/api/logout', 'POST', null, true).catch(() => {});
   localStorage.removeItem(SERVER_TOKEN_KEY);
   localStorage.removeItem(SERVER_USER_KEY);
-  setServerAcctMsg('Sudah keluar dari akun online. Progres tetap aman secara lokal.', 'ok');
+  setServerAcctMsg('Sudah keluar dari akun online.', 'ok');
   renderServerAcctUI();
+  // Akun wajib untuk main, jadi keluar akun akan memunculkan lagi gerbang login.
+  setAuthTab('login');
+  showAuthGate();
+}
+
+/* ===================== GERBANG AKUN WAJIB (WAJIB SEBELUM MAIN) =====================
+   Ini yang membuat pemain baru WAJIB bikin akun (atau masuk ke akun yang sudah ada)
+   sebelum bisa menyentuh lobby/menu. Satu akun server = satu profil lokal di
+   perangkat ini (dipetakan lewat PROFILE_MAP_KEY), jadi progres tiap akun tetap
+   terpisah rapi walau dibuka di device yang sama. */
+const authGateEl = document.getElementById('authGate');
+let authGateMode = 'register'; // 'register' | 'login'
+const PROFILE_MAP_KEY = 'dino_serverProfileMap';
+
+function loadProfileMap() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_MAP_KEY) || '{}'); } catch (e) { return {}; }
+}
+function saveProfileMap(map) { localStorage.setItem(PROFILE_MAP_KEY, JSON.stringify(map)); }
+// Tiap username server dipetakan ke satu profil lokal tetap, dibuat otomatis
+// saat pertama kali daftar/masuk dari perangkat ini.
+function getOrCreateProfileForUsername(username) {
+  const key = username.toLowerCase();
+  const map = loadProfileMap();
+  const list = loadProfileList();
+  if (map[key] && list.find(p => p.id === map[key])) {
+    localStorage.setItem('dinoActiveProfileId', map[key]);
+    return map[key];
+  }
+  const id = createProfile(username, null);
+  map[key] = id;
+  saveProfileMap(map);
+  return id;
+}
+
+function showAuthGate() { if (authGateEl) authGateEl.classList.add('active'); }
+function hideAuthGate() { if (authGateEl) authGateEl.classList.remove('active'); }
+
+function setAuthMsg(text, kind) {
+  const el = document.getElementById('authMsg');
+  if (!el) return;
+  el.textContent = text || '';
+  el.className = 'server-acct-msg' + (kind ? ' ' + kind : '');
+}
+
+function setAuthTab(mode) {
+  authGateMode = mode;
+  document.getElementById('authTabRegister').classList.toggle('active', mode === 'register');
+  document.getElementById('authTabLogin').classList.toggle('active', mode === 'login');
+  document.getElementById('authSubmitBtn').textContent = mode === 'register' ? 'DAFTAR & MAIN' : 'MASUK & MAIN';
+  document.getElementById('authPassword').setAttribute('autocomplete', mode === 'register' ? 'new-password' : 'current-password');
+  setAuthMsg('', '');
+}
+
+async function handleAuthSubmit() {
+  const username = (document.getElementById('authUsername').value || '').trim();
+  const password = document.getElementById('authPassword').value || '';
+  const btn = document.getElementById('authSubmitBtn');
+  btn.disabled = true;
+  setAuthMsg(authGateMode === 'register' ? 'Mendaftarkan akun...' : 'Masuk...', '');
+  try {
+    const endpoint = authGateMode === 'register' ? '/api/register' : '/api/login';
+    const json = await serverApiCall(endpoint, 'POST', { username, password }, false);
+    localStorage.setItem(SERVER_TOKEN_KEY, json.token);
+    localStorage.setItem(SERVER_USER_KEY, json.username);
+    getOrCreateProfileForUsername(json.username);
+    data = loadData();
+    if (authGateMode === 'login') {
+      await pullServerDataIntoActiveProfile();
+    } else {
+      await pushServerDataNow();
+    }
+    hideAuthGate();
+    renderServerAcctUI();
+    showScreen('menu');
+  } catch (e) {
+    setAuthMsg(e.message || 'Tidak bisa terhubung ke server. Pastikan server akun sedang menyala.', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Dipanggil sekali saat game dibuka: kalau ada sesi login tersimpan & masih valid,
+// langsung masuk tanpa perlu login ulang. Kalau tidak ada / sudah kedaluwarsa,
+// gerbang akun (yang sudah tampil dari awal lewat HTML) tetap menghalangi lobby.
+async function initAuthGate() {
+  const token = getServerToken();
+  const username = getServerUsername();
+  const checkingEl = document.getElementById('authChecking');
+  if (!token || !username) { showAuthGate(); return; }
+  if (checkingEl) checkingEl.style.display = 'block';
+  try {
+    getOrCreateProfileForUsername(username);
+    data = loadData();
+    await pullServerDataIntoActiveProfile();
+    hideAuthGate();
+    renderServerAcctUI();
+  } catch (e) {
+    localStorage.removeItem(SERVER_TOKEN_KEY);
+    localStorage.removeItem(SERVER_USER_KEY);
+    setAuthMsg('Sesi berakhir, silakan masuk lagi.', 'error');
+    showAuthGate();
+  } finally {
+    if (checkingEl) checkingEl.style.display = 'none';
+  }
 }
 
 /* ===================== PERSISTENT DATA (per profil aktif) ===================== */
@@ -3631,6 +3735,10 @@ document.getElementById('accountBackBtn').addEventListener('click', () => showSc
 document.getElementById('serverLoginBtn').addEventListener('click', handleServerLogin);
 document.getElementById('serverRegisterBtn').addEventListener('click', handleServerRegister);
 document.getElementById('serverLogoutBtn').addEventListener('click', handleServerLogout);
+document.getElementById('authTabRegister').addEventListener('click', () => setAuthTab('register'));
+document.getElementById('authTabLogin').addEventListener('click', () => setAuthTab('login'));
+document.getElementById('authSubmitBtn').addEventListener('click', handleAuthSubmit);
+document.getElementById('authPassword').addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAuthSubmit(); });
 document.getElementById('createProfileBtn').addEventListener('click', () => {
   const nameInput = document.getElementById('newProfileName');
   const pinInput = document.getElementById('newProfilePin');
@@ -4776,6 +4884,7 @@ resetDino();
 showScreen('menu');
 requestAnimationFrame(loop);
 requestAnimationFrame(lobbyPreviewLoop);
+initAuthGate(); // wajib login/daftar dulu sebelum lobby bisa disentuh
 
 /* ===================== INTRO / SPLASH ===================== */
 (function initIntroScreen() {

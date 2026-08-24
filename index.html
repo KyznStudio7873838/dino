@@ -69,6 +69,31 @@
   </div>
 </div>
 
+<!-- GERBANG AKUN WAJIB (muncul sebelum lobby bisa diakses) -->
+<div id="authGate" class="overlay active">
+  <div class="scroll-wrap">
+    <div class="card auth-gate-card">
+      <h2>🦖 SELAMAT DATANG</h2>
+      <div class="account-note">
+        Buat akun dulu sebelum main. Progres kamu (skor, koin, skin, dsb)
+        akan tersimpan aman di server dan cuma bisa dibuka pakai akun ini.
+      </div>
+
+      <div class="auth-tab-row">
+        <button class="auth-tab-btn active" id="authTabRegister" data-tab="register">DAFTAR AKUN BARU</button>
+        <button class="auth-tab-btn" id="authTabLogin" data-tab="login">SUDAH PUNYA AKUN</button>
+      </div>
+
+      <input type="text" id="authUsername" class="account-input" placeholder="Username (3-20 huruf/angka)" maxlength="20" autocomplete="username">
+      <input type="password" id="authPassword" class="account-input" placeholder="Password (min. 6 karakter)" maxlength="64" autocomplete="new-password">
+
+      <button class="big-btn small-btn" id="authSubmitBtn">DAFTAR &amp; MAIN</button>
+      <div id="authMsg" class="server-acct-msg"></div>
+      <div id="authChecking" class="account-note" style="display:none;">Mengecek sesi tersimpan...</div>
+    </div>
+  </div>
+</div>
+
 <!-- LOBBY -->
 <div id="lobby" class="overlay active">
   <canvas id="lobbyDinoCanvas"></canvas>

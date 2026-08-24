@@ -171,47 +171,66 @@
   <div class="scene-bg" id="accountBg"></div>
   <div class="scroll-wrap">
     <div class="card">
-      <h2>AKUN</h2>
-
-      <div class="acct-card">
-        <div class="acct-avatar">👤</div>
-        <div class="acct-info">
-          <div class="acct-name" id="acctUsername">Pemain</div>
-          <div class="acct-meta">Akun online</div>
-        </div>
-        <button class="acct-logout-btn" id="acctLogoutBtn">KELUAR</button>
+      <h2>AKUN &amp; PROFIL</h2>
+      <div class="account-note">
+        Profil di bawah memisahkan data di perangkat ini. Kalau mau progres ikut
+        ke HP/browser lain, masuk ke <b>Akun Online</b> di atas — tiap akun online
+        punya data tersimpan sendiri di server, tidak akan tercampur dengan akun lain.
+        Kamu juga tetap bisa pakai <b>Cadangkan Save</b> sebagai cara cadangan manual.
       </div>
+
+      <div class="account-section-title">🌐 AKUN ONLINE (SINKRON SERVER)</div>
+      <div id="serverAcctLoggedOut">
+        <input type="text" id="serverUsername" class="account-input" placeholder="Username (3-20 huruf/angka)" maxlength="20" autocomplete="username">
+        <input type="password" id="serverPassword" class="account-input" placeholder="Password (min. 6 karakter)" maxlength="64" autocomplete="current-password">
+        <div class="server-acct-btnrow">
+          <button class="big-btn small-btn" id="serverLoginBtn">MASUK</button>
+          <button class="ghost-btn small-btn" id="serverRegisterBtn">DAFTAR</button>
+        </div>
+      </div>
+      <div id="serverAcctLoggedIn" style="display:none;">
+        <div class="account-note" id="serverAcctStatus">Masuk sebagai <b id="serverAcctName"></b></div>
+        <button class="ghost-btn" id="serverLogoutBtn">KELUAR DARI AKUN ONLINE</button>
+      </div>
+      <div id="serverAcctMsg" class="server-acct-msg"></div>
+
+      <div class="account-section-title">PROFIL DI PERANGKAT INI</div>
+      <div id="profileList" class="profile-list"></div>
 
       <div class="account-section-title">🏆 PRESTASI</div>
       <div id="achievementList" class="achievement-list"></div>
+
+      <div class="account-section-title">BUAT PROFIL BARU</div>
+      <div class="avatar-picker" id="newProfileAvatarPicker"></div>
+      <input type="text" id="newProfileName" class="account-input" placeholder="Nama pemain" maxlength="18">
+      <input type="text" id="newProfilePin" class="account-input" placeholder="PIN opsional (4 digit, boleh kosong)" maxlength="6" inputmode="numeric">
+      <button class="big-btn small-btn" id="createProfileBtn">+ BUAT PROFIL</button>
 
       <div class="account-section-title">CADANGKAN / PULIHKAN DATA</div>
       <button class="ghost-btn" id="exportSaveBtn">⬇ CADANGKAN SAVE (.json)</button>
       <button class="ghost-btn" id="importSaveBtn">⬆ PULIHKAN DARI FILE</button>
       <input type="file" id="importSaveFile" accept="application/json,.json" style="display:none;">
 
-      <div class="reset-link" id="resetDataBtn">Hapus data akun ini</div>
+      <div class="reset-link" id="resetDataBtn">Hapus data profil ini</div>
       <button class="ghost-btn" id="accountBackBtn">← KEMBALI</button>
     </div>
   </div>
 </div>
 
-
-<!-- GERBANG AKUN — wajib daftar/masuk sebelum bisa main -->
-<div id="authGate" class="overlay active">
-  <div class="scene-bg" id="authGateBg"></div>
+<!-- SAMBUTAN PERTAMA KALI (setup akun baru di perangkat ini) -->
+<div id="welcome" class="overlay">
+  <div class="scene-bg" id="welcomeBg"></div>
   <div class="scroll-wrap">
-    <div class="card auth-card">
-      <div class="auth-logo">🦖</div>
-      <h1 id="authGateTitle">MASUK AKUN</h1>
-      <div class="welcome-sub" id="authGateSub">Masuk buat lanjutkan progresmu.</div>
-
-      <input type="text" id="authGateUsername" class="account-input" placeholder="Username" maxlength="20" autocomplete="username">
-      <input type="password" id="authGatePassword" class="account-input" placeholder="Password" maxlength="64" autocomplete="current-password">
-
-      <button class="big-btn" id="authGateSubmitBtn">MASUK</button>
-      <button class="link-btn" id="authGateSwitchBtn">Belum punya akun? Daftar</button>
-      <div id="authGateMsg" class="server-acct-msg"></div>
+    <div class="card">
+      <h1>🦖 SELAMAT DATANG!</h1>
+      <div class="welcome-sub">
+        Buat profil pertamamu di perangkat ini. Progres, koin, dan berlianmu
+        akan tersimpan khusus untuk profil ini — terpisah dari perangkat lain.
+      </div>
+      <div class="avatar-picker" id="welcomeAvatarPicker"></div>
+      <input type="text" id="welcomeName" class="account-input" placeholder="Nama pemain" maxlength="18">
+      <input type="text" id="welcomePin" class="account-input" placeholder="PIN opsional (4 digit, boleh kosong)" maxlength="6" inputmode="numeric">
+      <button class="big-btn" id="welcomeStartBtn">▶ MULAI PETUALANGAN</button>
     </div>
   </div>
 </div>

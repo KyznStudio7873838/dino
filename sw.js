@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dino-runner-v13-playstore';
+const CACHE_NAME = 'dino-runner-v14-update27';
 const ASSETS = [
   './',
   './index.html',

@@ -4092,8 +4092,22 @@ document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '2.6';
+const APP_VERSION = '2.7';
 const NEWS_LIST = [
+  {
+    version: '2.7',
+    date: '25 Agu 2026',
+    title: 'Update 2.7 — Perbaikan & Fitur Baru',
+    items: [
+      '🔊 Perbaikan bug: suara/musik sekarang benar-benar berhenti saat game diminimize/ditutup.',
+      '🖼️ Perbaikan bug: layar Mode tidak lagi menampilkan gambar dino nyangkut dari sebelum mati.',
+      '🌦️ Perbaikan bug: tampilan biome (gurun/salju/hutan/dll) sekarang tetap terlihat khas walau cuaca berubah.',
+      '⚙️ Fitur baru: Kualitas Grafis (Rendah/Normal/Tinggi/4K) di menu Pengaturan.',
+      '👣 Fitur baru: 8 varian Efek Jejak Kaki (Api, Es, Bintang, Petir, dll) — bisa dibeli & dipilih di Toko.',
+      '🪨 Rintangan baru: tumpukan batu, kayu log, gundukan salju, sarang lebah.',
+      '🎨 Tampilan game diperbarui jadi lebih modern (font & judul baru).'
+    ]
+  },
   {
     version: '2.6',
     date: '23 Agu 2026',

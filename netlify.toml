@@ -1,0 +1,26 @@
+# Deploy ke Netlify:
+# 1. netlify.com -> Add new site -> Deploy manually (drag & drop folder ini,
+#    JANGAN masukkan folder /server) ATAU hubungkan ke repo GitHub.
+# 2. Netlify otomatis kasih HTTPS + domain (mis. dinorunner.netlify.app).
+# 3. (Opsional) pasang custom domain di Netlify settings.
+
+[build]
+  publish = "."
+
+# sw.js tidak boleh di-cache lama oleh browser, supaya update game
+# langsung kepakai pemain tanpa nunggu cache lama expire
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/.well-known/assetlinks.json"
+  [headers.values]
+    Content-Type = "application/json"
+    Cache-Control = "no-cache"

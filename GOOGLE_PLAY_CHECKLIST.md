@@ -1,65 +1,64 @@
 # Checklist: Dino Runner → Google Play Store
 
-Game ini PWA (HTML/CSS/JS), jadi jalur tercepat & resmi ke Play Store adalah bungkus jadi **TWA (Trusted Web Activity)** — Android app tipis yang menampilkan PWA kamu secara native. Ini BUKAN webview biasa, dan Google secara resmi mendukungnya.
+Game ini PWA. Jalur resminya: bungkus jadi **TWA (Trusted Web Activity)** — app Android tipis yang menampilkan PWA kamu, didukung resmi oleh Google.
 
-## STATUS SEKARANG (sudah OK)
-- [x] manifest.json lengkap (name, icons 192/512, maskable, standalone, theme_color)
-- [x] Service worker offline caching sudah jalan
+## ✅ SUDAH SELESAI (gw siapin di paket ini)
+
+- [x] `manifest.json` lengkap (id, name, icons 192/512, maskable, categories, standalone)
+- [x] Service worker offline caching (`sw.js`), sudah include halaman privacy policy
 - [x] Icon 512x512 & maskable-512 ukurannya benar
-- [x] Password akun di-hash (scrypt), tidak plaintext
+- [x] Password akun di-hash (scrypt), bukan plaintext
+- [x] `SERVER_API_BASE` di script.js SUDAH otomatis pakai domain tempat game di-host — kamu TIDAK perlu edit manual kalau server & frontend satu domain
+- [x] `privacy-policy.html` — halaman siap upload, tinggal isi tanggal & email
+- [x] Link "Kebijakan Privasi" sudah ditaruh di menu Akun dalam game
+- [x] `feature-graphic-1024x500.png` — feature graphic siap upload ke Play Console
+- [x] `server/Dockerfile` — siap deploy ke Railway/Render/VPS mana pun yang support Docker
+- [x] `server/render.yaml` — blueprint deploy otomatis ke Render.com (termasuk disk permanen buat data akun)
+- [x] `netlify.toml` — config hosting frontend ke Netlify dengan header cache yang benar buat PWA
 
-## BLOKER UTAMA yang HARUS diselesaikan sebelum bisa submit
+## ⛔ YANG HARUS KAMU LAKUKAN SENDIRI (butuh akun/pembayaran milikmu, gw gak bisa lakuin ini)
 
-### 1. Hosting HTTPS publik (WAJIB)
-TWA butuh PWA kamu live di domain HTTPS asli (bukan localhost). Opsi murah/gratis:
-- GitHub Pages / Cloudflare Pages / Netlify / Vercel → untuk file statis (index.html, script.js, dll)
-- Server akun (`server/`) butuh hosting Node terpisah yang bisa jalan terus: Railway, Render, Fly.io, VPS, dll — plus HTTPS.
+### 1. Isi data pribadi di privacy-policy.html
+Buka file itu, ganti semua `[ISI TANGGAL]` dan `[ISI EMAIL]` dengan data asli.
 
-### 2. Ganti SERVER_API_BASE
-Di `script.js` baris ~402:
-```js
-const SERVER_API_BASE = 'http://localhost:3000';
-```
-Ganti ke domain server production kamu, HARUS `https://...` (bukan http). Kalau tidak diganti, fitur Akun Online cuma akan gagal senyap dan balik ke localStorage saja (game tetap jalan, tapi sinkron akun tidak berfungsi).
+### 2. Deploy frontend (file-file utama: index.html, script.js, dll — JANGAN folder /server)
+Pilih salah satu (gratis):
+- **Netlify**: netlify.com → drag & drop folder ini (tanpa `/server`) → langsung dapat HTTPS
+- **Cloudflare Pages**: pages.cloudflare.com → sama, drag & drop
+- **GitHub Pages**: push ke repo → aktifkan Pages di Settings
 
-### 3. Digital Asset Links (WAJIB untuk TWA)
-Supaya Android tahu app kamu "memiliki" domain itu (biar address bar Chrome hilang / full app-like):
-- Generate fingerprint SHA-256 dari keystore signing kamu
-- Taruh file `.well-known/assetlinks.json` di root domain kamu, isinya menyatakan package name Android + fingerprint tsb
-- PWABuilder (langkah 4) bisa generate file ini otomatis
+Setelah live, kamu punya URL seperti `https://dinorunner.netlify.app`.
 
-### 4. Bungkus jadi Android App (AAB)
-Cara termudah tanpa install Android Studio: pakai **PWABuilder** (pwabuilder.com, resmi didukung Google/Microsoft):
-1. Buka pwabuilder.com → masukkan URL PWA kamu yang sudah live
-2. PWABuilder scan manifest.json & service worker kamu (skor akan tinggi karena manifest sudah lengkap)
-3. Pilih platform **Android** → generate package (isi package name, mis. `com.kyzenteam.dinorunner`)
-4. Download hasil: dapat `.aab` (Android App Bundle) + signing key + file `assetlinks.json`
-5. Upload `assetlinks.json` ke `https://domainkamu.com/.well-known/assetlinks.json`
+### 3. Deploy server akun (folder `/server`) — kalau mau fitur Akun Online aktif
+- **Render.com**: New → Blueprint → connect repo yang isi folder `server/` → otomatis kebaca `render.yaml`
+- **Railway.app**: New Project → Deploy from repo → otomatis kebaca `Dockerfile`
 
-Alternatif lebih advanced: **Bubblewrap CLI** (`npm i -g @bubblewrap/cli`) kalau mau kontrol penuh dari command line.
+Setelah live, update `CORS_ORIGIN` di environment variable server ke domain frontend kamu (dari langkah 2), misal `https://dinorunner.netlify.app`.
 
-### 5. Privacy Policy live
-File `PRIVACY_POLICY.md` sudah dibuatkan di folder ini — isi bagian [ISI ...], lalu publish sebagai halaman web (bisa halaman biasa di situs Kyzen Team). Link ini WAJIB dimasukkan ke Play Console.
+Kalau server dan frontend beda domain, buka `script.js` dan isi `manualOverride` (ada komentar jelas di dekat baris ~406) dengan URL server-mu.
 
-## Setup Play Console (setelah AAB siap)
-1. Daftar akun Google Play Console (biaya sekali $25)
-2. Buat app baru → isi:
-   - **App details**: nama, deskripsi singkat/lengkap (Bahasa Indonesia OK)
-   - **Store listing**: screenshot minimal 2 (disarankan 4-8), ukuran min 320px, feature graphic 1024x500, icon 512x512 (ambil dari `icon-512.png`)
-   - **Content rating**: isi kuesioner IARC (game ini kekerasan ringan/tanpa kekerasan → biasanya rating rendah)
-   - **Data safety form**: WAJIB cocok dengan privacy policy — jelaskan: username & password dikumpulkan (kalau user login), data disimpan terenkripsi, tidak dibagikan ke pihak ketiga
-   - **Target audience**: pilih kategori umur
-   - **Privacy policy URL**: link ke halaman PRIVACY_POLICY yang sudah live
-3. Upload `.aab` ke Production (atau mulai dari Internal Testing track dulu — disarankan)
-4. Set **target API level** — PWABuilder/Bubblewrap otomatis pakai versi terbaru yang Play Store syaratkan, biasanya sudah aman
-5. Submit for review (biasanya 1-7 hari)
+### 4. Generate Android App Bundle (.aab) via PWABuilder
+1. pwabuilder.com → masukkan URL frontend yang sudah live
+2. Pilih Android → isi package name, misal `com.kyzenteam.dinorunner`
+3. Download hasil: `.aab` + signing key + `assetlinks.json`
+4. Upload `assetlinks.json` ke `https://domainkamu.com/.well-known/assetlinks.json` (redeploy frontend dengan file ini)
 
-## Rekomendasi urutan pengerjaan
-1. Deploy front-end statis ke hosting gratis (Cloudflare Pages tercepat)
-2. Deploy `server/` ke Railway/Render (kalau fitur Akun Online mau dipakai — kalau belum siap, bisa disable dulu tombol Akun Online biar tidak membingungkan pemain)
-3. Update `SERVER_API_BASE` → redeploy front-end
-4. Generate AAB via PWABuilder
-5. Isi privacy policy real, publish
-6. Isi Play Console lengkap → submit ke Internal Testing dulu → baru Production
+### 5. Screenshot gameplay
+Play Console butuh minimal 2 screenshot asli gameplay (disarankan 4-8), ukuran min 320px sisi terpendek. Ambil langsung dari HP/browser pas main.
 
-Kalau butuh, gw bisa bantuin bikinin halaman privacy policy HTML siap-pasang, atau bantu troubleshoot pas deploy servernya.
+### 6. Google Play Console
+1. Daftar (biaya sekali $25) di play.google.com/console
+2. Buat app baru, isi:
+   - Nama, deskripsi singkat & lengkap
+   - Upload `feature-graphic-1024x500.png` dan `icon-512.png`
+   - Upload screenshot dari langkah 5
+   - **Content rating**: isi kuesioner IARC
+   - **Data safety form**: cocokkan dengan isi privacy-policy.html (username+password dikumpulkan jika user login, di-hash, tidak dibagikan ke pihak ketiga)
+   - **Privacy policy URL**: link ke `privacy-policy.html` yang sudah live
+3. Upload `.aab` ke track **Internal Testing** dulu, tes beberapa hari, baru promosikan ke Production
+4. Submit for review (biasanya 1-7 hari)
+
+## Urutan tercepat
+1. Isi privacy-policy.html → 2. Deploy frontend (Netlify) → 3. Deploy server (Render) → 4. Set CORS_ORIGIN → 5. PWABuilder generate .aab → 6. Upload assetlinks.json → 7. Screenshot → 8. Isi Play Console → 9. Internal Testing → 10. Production
+
+Kalau nyangkut di salah satu langkah (misal error CORS, PWABuilder score rendah, dll), kirim screenshot error-nya ke gw, langsung gw bantu debug.

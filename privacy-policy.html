@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kebijakan Privasi — Dino Runner (Kyzen Team)</title>
+<link rel="icon" type="image/png" href="./favicon-32.png">
+<style>
+  :root{
+    --sky:#8ec9f2;
+    --green:#6fbf4f;
+    --dark:#1f3a1a;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    background:linear-gradient(180deg,var(--sky) 0%,#c9e8b8 100%);
+    color:var(--dark);
+    min-height:100vh;
+    padding:32px 16px 80px;
+  }
+  .wrap{max-width:760px;margin:0 auto;}
+  .card{
+    background:var(--card);
+    border-radius:20px;
+    padding:32px clamp(20px,5vw,48px);
+    box-shadow:0 12px 30px rgba(0,0,0,0.12);
+  }
+  .brand{
+    display:flex;align-items:center;gap:12px;margin-bottom:8px;
+  }
+  .brand img{width:48px;height:48px;border-radius:12px;}
+  .brand span{font-weight:800;font-size:14px;letter-spacing:.06em;color:var(--green);text-transform:uppercase;}
+  h1{font-size:clamp(24px,4vw,32px);margin:8px 0 4px;}
+  .updated{font-size:13px;color:#6b7c66;margin-bottom:28px;}
+  h2{font-size:18px;margin-top:32px;color:#2c5024;border-left:4px solid var(--green);padding-left:10px;}
+  p,li{line-height:1.7;font-size:15px;}
+  ul{padding-left:22px;}
+  .note{
+    margin-top:36px;padding:16px;border-radius:12px;
+    background:#fff7e0;border:1px solid #f0d98c;font-size:13px;color:#6b5a1a;
+  }
+  a{color:#1a7a3d;}
+  footer{text-align:center;font-size:13px;color:#4a5a44;margin-top:24px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="brand">
+      <img src="./icon-192.png" alt="Dino Runner">
+      <span>Kyzen Team</span>
+    </div>
+    <h1>Kebijakan Privasi — Dino Runner</h1>
+    <div class="updated">Terakhir diperbarui: <strong>[ISI TANGGAL]</strong></div>
+
+    <p>Dino Runner ("Aplikasi") dikembangkan oleh <strong>Kyzen Team</strong> ("kami"). Halaman ini menjelaskan data apa saja yang dikumpulkan saat kamu memainkan game ini dan bagaimana data tersebut digunakan.</p>
+
+    <h2>1. Data yang disimpan di perangkat</h2>
+    <p>Sebagian besar progres permainan (skor tertinggi, koin, berlian, skin, pencapaian, pengaturan suara) disimpan secara lokal di perangkatmu memakai <code>localStorage</code>. Data ini <strong>tidak dikirim ke server manapun</strong> kecuali kamu memilih login ke Akun Online.</p>
+
+    <h2>2. Akun Online (opsional)</h2>
+    <p>Jika kamu memilih membuat "Akun Online" untuk menyinkronkan progres antar perangkat, kami menyimpan:</p>
+    <ul>
+      <li>Username yang kamu pilih</li>
+      <li>Password (disimpan dalam bentuk <em>hash + salt</em> memakai scrypt — password asli tidak pernah disimpan)</li>
+      <li>Data progres permainan (skor, koin, berlian, item terbuka, pencapaian)</li>
+    </ul>
+    <p>Akun Online bersifat <strong>opsional</strong>. Kamu bisa memainkan game sepenuhnya tanpa membuat akun.</p>
+
+    <h2>3. Data yang TIDAK kami kumpulkan</h2>
+    <p>Kami tidak mengumpulkan nama asli, email, nomor telepon, lokasi, kontak, foto/media perangkat, riwayat browsing, ataupun data finansial.</p>
+
+    <h2>4. Pembagian data ke pihak ketiga</h2>
+    <p>Kami tidak menjual atau membagikan data pengguna ke pihak ketiga mana pun.</p>
+
+    <h2>5. Keamanan</h2>
+    <p>Password di-hash sebelum disimpan. Koneksi ke server akun menggunakan HTTPS. Token sesi kedaluwarsa otomatis setelah 30 hari.</p>
+
+    <h2>6. Penghapusan data</h2>
+    <p>Kamu bisa menghapus data profil kapan saja lewat menu <strong>"Hapus data profil ini"</strong> di dalam game, atau menghubungi kami di <a href="mailto:[ISI EMAIL]">[ISI EMAIL KONTAK]</a> untuk meminta penghapusan akun online.</p>
+
+    <h2>7. Anak-anak</h2>
+    <p>Aplikasi ini ditujukan untuk pengguna umum. Kami tidak sengaja mengumpulkan data identitas pribadi dari anak di bawah umur — username dibuat bebas tanpa perlu data asli.</p>
+
+    <h2>8. Kontak</h2>
+    <p>Pertanyaan seputar privasi bisa dikirim ke <a href="mailto:[ISI EMAIL]">[ISI EMAIL KONTAK KYZEN TEAM]</a>.</p>
+
+    <div class="note">
+      ⚠️ <strong>Catatan untuk Kyzen:</strong> Ganti semua teks <code>[ISI ...]</code> di atas sebelum publish. Halaman ini harus di-host di URL publik (upload bareng file game lainnya) dan link-nya dimasukkan ke <strong>Play Console → App content → Privacy policy</strong>.
+    </div>
+  </div>
+  <footer>© <span id="y"></span> Kyzen Team</footer>
+</div>
+<script>document.getElementById('y').textContent = new Date().getFullYear();</script>
+</body>
+</html>

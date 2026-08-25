@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dino-runner-v12-reset';
+const CACHE_NAME = 'dino-runner-v13-playstore';
 const ASSETS = [
   './',
   './index.html',
@@ -7,7 +7,8 @@ const ASSETS = [
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  './icon-maskable-512.png'
+  './icon-maskable-512.png',
+  './privacy-policy.html'
 ];
 
 self.addEventListener('install', (event) => {

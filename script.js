@@ -398,8 +398,16 @@ function renderAccountScreen() {
    dihubungi (offline / belum di-deploy), game tetap jalan normal pakai data lokal —
    sinkron server hanya percobaan tambahan, bukan syarat wajib untuk main.
 
-   Ganti SERVER_API_BASE di bawah ke alamat server kamu saat sudah online. */
-const SERVER_API_BASE = 'http://localhost:3000';
+   SERVER_API_BASE otomatis pakai domain tempat game ini di-host (dengan asumsi
+   API server jalan di domain yang sama, path /api/...). Kalau server akun kamu
+   ada di domain/subdomain LAIN (mis. api.situskamu.com), isi manual di bawah,
+   HARUS https:// (bukan http://) supaya jalan waktu sudah jadi Android app. */
+const SERVER_API_BASE = (function () {
+  const manualOverride = ''; // contoh: 'https://api.kyznteam.com'
+  if (manualOverride) return manualOverride;
+  if (location.protocol === 'file:') return 'http://localhost:3000'; // dev lokal
+  return location.origin; // production: pakai domain yang sama
+})();
 const SERVER_TOKEN_KEY = 'dino_serverToken';
 const SERVER_USER_KEY = 'dino_serverUsername';
 

@@ -89,6 +89,39 @@ body[data-gfx="rendah"] .buff-chip {
     transition: width 0.15s linear;
   }
 
+  /* Tombol Jeda (pause) — mengambang di pojok kanan atas saat main */
+  #pauseBtn {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    right: 14px;
+    z-index: 8;
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.7);
+    background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.82));
+    box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    font-size: 15px;
+    color: #3a3a3a;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+  #pauseBtn.visible { display: flex; }
+  #pauseBtn:active { transform: scale(0.92); }
+  .pause-card { max-width: 300px; padding-top: 26px; }
+  .pause-card h2 {
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
+    font-size: 20px;
+    letter-spacing: 1px;
+    margin-bottom: 18px;
+    color: #2a2a2a;
+  }
+  .pause-card .big-btn { width: 100%; }
+  .pause-card .ghost-btn { width: 100%; }
+
   /* ---------- Overlays (colorful scenes) ---------- */
   .overlay {
     position: fixed; inset: 0;
@@ -880,23 +913,82 @@ body[data-gfx="rendah"] .buff-chip {
     padding: 6px 16px;
     box-shadow: 0 2px 6px rgba(240,220,160,0.35);
   }
-  #skinGrid {
+  #skinGrid, #trailGrid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
     width: 100%;
     margin-bottom: 16px;
   }
-  .skin-card {
-    background: #fff;
-    border: 2px solid #f0f0f0;
+  .shop-card { padding-top: 22px; }
+  #shopCoins {
+    background: linear-gradient(180deg, #fff6d9, #ffedae);
+    border: 1.5px solid #ffd76b;
+    border-radius: 20px;
+    padding: 7px 18px;
+    font-size: 12.5px;
+    font-weight: bold;
+    color: #6b5000;
+    box-shadow: 0 2px 6px rgba(240,220,160,0.4);
+    margin-bottom: 14px;
+  }
+  .shop-tabs {
+    display: flex;
+    width: 100%;
+    background: rgba(0,0,0,0.05);
+    border-radius: 18px;
+    padding: 4px;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+  .shop-tab-btn {
+    flex: 1;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 0.3px;
+    padding: 10px 6px;
+    border: none;
     border-radius: 14px;
+    background: transparent;
+    color: #7a7a7a;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .shop-tab-btn.active {
+    background: linear-gradient(180deg, #ffffff, #f2f2f2);
+    color: #2a2a2a;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  }
+  .shop-tab-panel { width: 100%; }
+  .skin-card {
+    background: linear-gradient(180deg, #ffffff, #fbfbfb);
+    border: 2px solid #eef0ef;
+    border-radius: 16px;
     padding: 12px 8px;
     text-align: center;
-    box-shadow: 0 3px 0 #e3e3e3;
-    transition: transform 0.1s ease;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+    transition: transform 0.1s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    position: relative;
   }
-  .skin-card.selected { border-color: #3a7d3a; }
+  .skin-card.selected {
+    border-color: #4d9450;
+    box-shadow: 0 0 0 3px rgba(77,148,80,0.18), 0 4px 10px rgba(0,0,0,0.08);
+  }
+  .skin-card.selected::before {
+    content: '✓';
+    position: absolute;
+    top: 6px; right: 8px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #3a7d3a;
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
   .skin-swatch {
     width: 60px; height: 48px;
     margin: 0 auto 8px;
@@ -1216,9 +1308,4 @@ body[data-gfx="rendah"] .buff-chip {
     pointer-events: none;
   }
 
-  .skin-card { transition: box-shadow 0.15s ease, border-color 0.15s ease; }
-  .skin-card.selected {
-    border-color: #3a7d3a;
-    box-shadow: 0 3px 0 #e3e3e3, 0 0 0 3px rgba(58,125,58,0.18);
-  }
   .profile-item { transition: border-color 0.15s ease, background 0.15s ease; }

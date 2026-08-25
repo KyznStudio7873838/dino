@@ -232,7 +232,9 @@ const AudioMgr = (function () {
     get sfxOn() { return sfxOn; },
     get musicVol() { return musicVol; },
     get sfxVol() { return sfxVol; },
-    setMusicOn, setSfxOn, setMusicVol, setSfxVol
+    setMusicOn, setSfxOn, setMusicVol, setSfxVol,
+    pauseAudio: suspendForBackground,
+    resumeAudio: resumeFromBackground
   };
 })();
 
@@ -3548,7 +3550,7 @@ function maybeChangeBiome() {
 
 /* ===================== INPUT ===================== */
 function jump() {
-  if (state !== 'playing' || qPaused) return;
+  if (state !== 'playing' || qPaused || paused) return;
   if (inChapter2) { q2Thrust = true; return; }
   if (!dino.jumping) {
     dino.jumping = true;
@@ -3564,6 +3566,39 @@ canvas.addEventListener('touchend', (e) => { e.preventDefault(); releaseFlight()
 canvas.addEventListener('mousedown', jump);
 canvas.addEventListener('mouseup', releaseFlight);
 
+/* ===================== JEDA (PAUSE) MANUAL ===================== */
+let paused = false;
+function openPause() {
+  if (state !== 'playing' || paused) return;
+  paused = true;
+  AudioMgr.pauseAudio();
+  document.getElementById('pauseOverlay').classList.add('active');
+}
+function closePause() {
+  paused = false;
+  AudioMgr.resumeAudio();
+  document.getElementById('pauseOverlay').classList.remove('active');
+}
+document.getElementById('pauseBtn').addEventListener('click', () => {
+  AudioMgr.sfx('click');
+  openPause();
+});
+document.getElementById('pauseResumeBtn').addEventListener('click', () => {
+  AudioMgr.sfx('click');
+  closePause();
+});
+document.getElementById('pauseRestartBtn').addEventListener('click', () => {
+  AudioMgr.sfx('click');
+  closePause();
+  if (mode === 'quest') { inChapter2 ? startChapter2() : startQuest(false); }
+  else startGame();
+});
+document.getElementById('pauseMenuBtn').addEventListener('click', () => {
+  AudioMgr.sfx('click');
+  closePause();
+  showScreen('menu');
+});
+
 /* ===================== SCREEN MANAGEMENT ===================== */
 function showScreen(name) {
   lobby.classList.remove('active');
@@ -3575,6 +3610,8 @@ function showScreen(name) {
   questHud.style.display = 'none';
   attackBtn.classList.remove('ready');
   if (name !== 'playing') bossBarWrap.style.display = 'none';
+  if (name !== 'playing') { document.getElementById('pauseBtn').classList.remove('visible'); paused = false; document.getElementById('pauseOverlay').classList.remove('active'); }
+  else { document.getElementById('pauseBtn').classList.add('visible'); }
   if (name === 'menu') { dino.w = 40; dino.h = 40; resetDino(); lobby.classList.add('active'); refreshLobbyStats(); }
   if (name === 'modeSelect') { modeSelect.classList.add('active'); refreshLobbyStats(); }
   if (name === 'shop') { shop.classList.add('active'); renderShop(); }
@@ -3793,6 +3830,15 @@ document.getElementById('shopBtnLobby').addEventListener('click', () => showScre
 document.getElementById('modeFabBtn').addEventListener('click', () => showScreen('modeSelect'));
 document.getElementById('modeSelectBackBtn').addEventListener('click', () => showScreen('menu'));
 document.getElementById('shopBackBtn').addEventListener('click', () => showScreen('menu'));
+document.querySelectorAll('.shop-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.shop-tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+    document.querySelectorAll('.shop-tab-panel').forEach(p => {
+      p.style.display = p.dataset.panel === btn.dataset.tab ? '' : 'none';
+    });
+    AudioMgr.sfx('click');
+  });
+});
 document.getElementById('retryBtn').addEventListener('click', () => {
   if (mode === 'quest') { inChapter2 ? startChapter2() : startQuest(false); }
   else startGame();
@@ -4092,8 +4138,19 @@ document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '2.7';
+const APP_VERSION = '2.8';
 const NEWS_LIST = [
+  {
+    version: '2.8',
+    date: '25 Agu 2026',
+    title: 'Update 2.8 — Perbaikan Kritis & Toko Baru',
+    items: [
+      '🐞 Perbaikan bug KRITIS: Mode Biasa sempat macet total tidak bisa dimainkan — sudah diperbaiki.',
+      '⏸️ Fitur baru: tombol JEDA saat main — bisa lanjutkan, ulangi, atau kembali ke menu kapan saja.',
+      '🛍️ Toko diperbarui total: tab SKIN & JEJAK KAKI terpisah, tampilan kartu lebih modern.',
+      '🔄 Perbaikan sistem update otomatis supaya versi terbaru selalu langsung ke-load.'
+    ]
+  },
   {
     version: '2.7',
     date: '25 Agu 2026',
@@ -4952,7 +5009,7 @@ function update() {
   }
 
   if (!dino.jumping && frame % 6 === 0) {
-    spawnTrailParticle();
+    spawnTrailParticle(effSpeed);
   }
   dustParticles.forEach(d => { d.x += d.vx; d.life--; if (d.vy !== undefined) { d.y += d.vy; d.vy += (d.grav || 0); } if (d.rot !== undefined) d.rot += d.rotSpeed || 0; });
   dustParticles = dustParticles.filter(d => d.life > 0);
@@ -5008,7 +5065,7 @@ function update() {
 }
 
 /* ===================== DRAW ===================== */
-function spawnTrailParticle() {
+function spawnTrailParticle(effSpeed) {
   const t = getTrail(data.selectedTrail);
   const baseX = dino.x + dino.w * 0.25, baseY = GROUND_Y - 2;
   const life = 16 + (t.type === 'leaf' || t.type === 'bubble' ? 10 : 0);
@@ -5117,7 +5174,7 @@ function draw() {
 
 /* ===================== LOOP ===================== */
 function loop() {
-  if (state === 'playing') {
+  if (state === 'playing' && !paused) {
     if (mode === 'quest') {
       if (inChapter2) {
         q2Update();

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dino-runner-v15-update28';
+const CACHE_NAME = 'dino-runner-v16-hud-relayout';
 const ASSETS = [
   './',
   './index.html',

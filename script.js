@@ -4138,8 +4138,17 @@ document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '2.8';
+const APP_VERSION = '2.9';
 const NEWS_LIST = [
+  {
+    version: '2.9',
+    date: '25 Agu 2026',
+    title: 'Update 2.9 — Tata Letak HUD Baru',
+    items: [
+      '🖼️ Posisi HUD saat main dirombak: Jeda+Skor di kiri atas, Nyawa di tengah atas, Koin/Berlian & Cuaca/Biome di kanan atas.',
+      '✨ Tampilan HUD lebih rapi dan tidak bertumpuk.'
+    ]
+  },
   {
     version: '2.8',
     date: '25 Agu 2026',

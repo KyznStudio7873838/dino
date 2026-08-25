@@ -48,8 +48,16 @@ body[data-gfx="rendah"] .buff-chip {
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
   }
-  #hud .left { display: flex; flex-direction: column; gap: 7px; }
+  #hud .left { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; pointer-events: auto; }
+  #hud .center {
+    position: absolute;
+    top: max(10px, env(safe-area-inset-top));
+    left: 50%;
+    transform: translateX(-50%);
+  }
   #hud .right { display: flex; flex-direction: column; gap: 7px; align-items: flex-end; }
+  .hud-top-row { display: flex; align-items: center; gap: 8px; }
+  .hud-group { display: flex; gap: 7px; }
   #lives { letter-spacing: 2px; color: #e5484d; }
   #weatherPill { font-size: 13px; }
   #buffRow {
@@ -89,25 +97,22 @@ body[data-gfx="rendah"] .buff-chip {
     transition: width 0.15s linear;
   }
 
-  /* Tombol Jeda (pause) — mengambang di pojok kanan atas saat main */
+  /* Tombol Jeda (pause) — sekarang jadi satu grup dengan SKOR di pojok kiri atas */
   #pauseBtn {
-    position: fixed;
-    top: max(10px, env(safe-area-inset-top));
-    right: 14px;
-    z-index: 8;
-    width: 38px; height: 38px;
+    width: 34px; height: 34px;
     border-radius: 50%;
     border: 1.5px solid rgba(255,255,255,0.7);
     background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.82));
-    box-shadow: 0 3px 8px rgba(0,0,0,0.18);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
-    font-size: 15px;
+    font-size: 13px;
     color: #3a3a3a;
     display: none;
     align-items: center;
     justify-content: center;
     cursor: pointer;
+    flex-shrink: 0;
   }
   #pauseBtn.visible { display: flex; }
   #pauseBtn:active { transform: scale(0.92); }

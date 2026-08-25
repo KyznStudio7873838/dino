@@ -13,6 +13,9 @@
 <link rel="apple-touch-icon" href="./apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
@@ -136,6 +139,17 @@
       <button class="settings-toggle" id="sfxToggleBtn">AKTIF</button>
     </div>
     <input type="range" class="settings-slider" id="sfxVolSlider" min="0" max="1" step="0.05">
+
+    <div class="settings-row">
+      <div class="settings-label">🖼️ Kualitas Grafis</div>
+    </div>
+    <div class="gfx-quality-row" id="gfxQualityRow">
+      <button class="gfx-q-btn" data-q="rendah">RENDAH</button>
+      <button class="gfx-q-btn" data-q="normal">NORMAL</button>
+      <button class="gfx-q-btn" data-q="tinggi">TINGGI</button>
+      <button class="gfx-q-btn" data-q="4k">4K</button>
+    </div>
+    <div class="settings-hint" id="gfxQualityHint">Kualitas lebih tinggi = gambar lebih tajam, tapi lebih berat di HP lawas.</div>
   </div>
 </div>
 
@@ -246,6 +260,8 @@
       <h2>TOKO SKIN</h2>
       <div id="shopCoins">🪙 0 KOIN</div>
       <div id="skinGrid"></div>
+      <h2 style="margin-top:18px;">EFEK JEJAK KAKI</h2>
+      <div id="trailGrid"></div>
       <button class="ghost-btn" id="shopBackBtn">← KEMBALI</button>
     </div>
   </div>

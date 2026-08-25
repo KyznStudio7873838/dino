@@ -1,10 +1,18 @@
+/* Mode grafis "Rendah": matikan blur kaca (backdrop-filter) yang berat
+   di GPU HP lawas, ganti jadi warna solid biar tetap kebaca & tetap ringan. */
+body[data-gfx="rendah"] .pill,
+body[data-gfx="rendah"] .buff-chip {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: rgba(255,255,255,0.94) !important;
+}
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     width: 100%; height: 100%;
     overflow: hidden;
     position: fixed;
     background: #eef1f4;
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     color: #3a3a3a;
     user-select: none;
     touch-action: none;
@@ -89,6 +97,12 @@
     justify-content: center;
     z-index: 20;
     overflow: hidden;
+    /* BUGFIX: sebelumnya overlay ini transparan, jadi kalau belum ada
+       .scene-bg sendiri (mis. #modeSelect), canvas game yang lagi
+       "beku" di frame terakhir (dino sebelum mati) keliatan nembus dari
+       belakang. Kasih background dasar modern di sini biar semua overlay
+       selalu solid, apapun kontennya. */
+    background: radial-gradient(120% 100% at 50% 0%, #2c3b52 0%, #1a2333 55%, #10151f 100%);
   }
   .overlay.active { display: flex; }
 
@@ -355,12 +369,17 @@
     width: 100%;
   }
   .game-title {
-    font-size: clamp(20px, 7.2vw, 27px);
-    letter-spacing: 2px;
-    color: #fff;
-    -webkit-text-stroke: 2.5px #1a1a1a;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
+    font-weight: 800;
+    font-size: clamp(22px, 7.6vw, 30px);
+    letter-spacing: 1px;
+    background: linear-gradient(180deg, #ffffff 0%, #dff3ff 55%, #b7dcff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-stroke: 2px #16324a;
     paint-order: stroke fill;
-    text-shadow: 0 3px 0 #1a1a1a, 0 5px 10px rgba(0,0,0,0.4);
+    text-shadow: 0 4px 0 #16324a, 0 10px 18px rgba(0,0,0,0.35);
     margin: 0;
   }
   .title-version {
@@ -377,7 +396,7 @@
     position: absolute;
     bottom: 22px; left: 16px;
     z-index: 6;
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 13px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -448,7 +467,7 @@
   .daily-desc { font-size: 12px; color: #fff; line-height: 1.5; }
   .daily-reward-line { font-size: 11px; color: #ffd76b; font-weight: bold; margin-top: 8px; }
   .daily-claim {
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 11px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -475,7 +494,7 @@
   .settings-row:first-of-type { margin-top: 2px; }
   .settings-label { font-size: 12px; font-weight: bold; color: #2a2a2a; }
   .settings-toggle {
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 10px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -494,6 +513,39 @@
     width: 100%;
     margin-top: 8px;
     accent-color: #ff9f43;
+  }
+  .gfx-quality-row {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .gfx-q-btn {
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
+    font-size: 10px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    padding: 9px 4px;
+    border: 1.5px solid rgba(0,0,0,0.08);
+    border-radius: 12px;
+    background: rgba(0,0,0,0.05);
+    color: #6b6b6b;
+    cursor: pointer;
+    transition: transform 0.08s ease, background 0.15s ease, color 0.15s ease;
+  }
+  .gfx-q-btn.active {
+    background: linear-gradient(180deg, #6fbf4f, #3a7d3a);
+    color: #fff;
+    border-color: transparent;
+    box-shadow: 0 3px 0 #2c5c2c;
+  }
+  .gfx-q-btn:active { transform: translateY(2px); }
+  .settings-hint {
+    font-size: 10px;
+    color: #8a8a8a;
+    margin-top: 8px;
+    line-height: 1.5;
   }
 
   /* Berita / Update log */
@@ -531,7 +583,7 @@
   .news-entry-items li { font-size: 11.5px; color: #333; line-height: 1.6; }
 
   .big-btn {
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 17px;
     font-weight: bold;
     letter-spacing: 2px;
@@ -547,7 +599,7 @@
   }
   .big-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 #c25c0f, inset 0 1px 0 rgba(255,255,255,0.3); }
   .ghost-btn {
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 13px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -705,7 +757,7 @@
   .profile-item .p-meta { font-size: 9px; color: #999; }
   .profile-item .p-actions { display: flex; gap: 6px; }
   .p-btn {
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 10px;
     font-weight: bold;
     padding: 7px 11px;
@@ -720,7 +772,7 @@
   .p-btn.del { background: #ffe3e3; color: #c0392b; }
   .account-input {
     width: 100%;
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 13px;
     padding: 11px 12px;
     border: 2px solid #e8e8e8;
@@ -853,7 +905,7 @@
   }
   .skin-name { font-size: 12px; font-weight: bold; margin-bottom: 6px; color: #3a3a3a; }
   .skin-btn {
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 11px;
     font-weight: bold;
     padding: 8px 10px;
@@ -971,7 +1023,7 @@
   .mode-row { display: flex; gap: 10px; margin-bottom: 6px; width: 100%; }
   .mode-btn {
     flex: 1;
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 13px;
     font-weight: bold;
     letter-spacing: 1px;
@@ -1033,7 +1085,7 @@
     background: radial-gradient(circle at 35% 30%, #ff8a5c, #d94f24);
     border: 3px solid rgba(255,255,255,0.75);
     color: #fff;
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-weight: bold;
     font-size: 11px;
     display: none;
@@ -1101,7 +1153,7 @@
   #storyOverlay h3 { display: none; }
   #storyOverlay p { display: none; }
   #storyOverlay button {
-    font-family: 'Courier New', monospace;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 14px;
     font-weight: bold;
     letter-spacing: 1px;

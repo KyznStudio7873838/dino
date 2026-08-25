@@ -202,6 +202,30 @@ const AudioMgr = (function () {
   function setMusicVol(v) { musicVol = v; localStorage.setItem('dino_musicVol', String(v)); if (musicGain) musicGain.gain.value = v; }
   function setSfxVol(v) { sfxVol = v; localStorage.setItem('dino_sfxVol', String(v)); if (sfxGain) sfxGain.gain.value = v; }
 
+  // BUGFIX: suara/musik tetap jalan walau app diminimize/ditutup ke background.
+  // Solusinya: begitu tab/app disembunyikan (visibilitychange) atau halaman
+  // mau ditinggal (pagehide), langsung stop timer musik & suspend AudioContext
+  // supaya osilator berhenti total. Begitu app dibuka lagi, resume otomatis
+  // kalau musik memang lagi aktif.
+  let wasPlayingBeforeHide = false;
+  function suspendForBackground() {
+    wasPlayingBeforeHide = musicPlaying;
+    stopMusic();
+    if (actx && actx.state === 'running') actx.suspend();
+  }
+  function resumeFromBackground() {
+    if (!actx) return;
+    if (actx.state === 'suspended') actx.resume();
+    if (musicOn && wasPlayingBeforeHide) startMusic();
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) suspendForBackground();
+    else resumeFromBackground();
+  });
+  window.addEventListener('pagehide', suspendForBackground);
+  window.addEventListener('blur', suspendForBackground);
+  window.addEventListener('focus', resumeFromBackground);
+
   return {
     unlock, sfx,
     get musicOn() { return musicOn; },
@@ -216,6 +240,35 @@ let GROUND_Y = 0;
 const GRAVITY = 0.6;
 const JUMP_FORCE = -12.5;
 
+/* ===================== KUALITAS GRAFIS ===================== =
+   VW/VH = ukuran "logis" layar (satuan CSS px) — SEMUA posisi & ukuran
+   game (dino, rintangan, partikel, dsb) dihitung dari VW/VH ini persis
+   seperti sebelumnya, jadi proporsi game tidak berubah sama sekali.
+   Yang berubah cuma RESOLUSI GAMBAR di belakang layar (backing store)
+   lewat ctx.setTransform(dpr,...) — sama seperti trik retina/HiDPI di
+   web modern. Jadi makin tinggi setting-nya, makin tajam garis & bentuk
+   yang dirender, tanpa mengubah ukuran/posisi objek game sama sekali. */
+let VW = window.innerWidth, VH = window.innerHeight;
+const GFX_LEVELS = { rendah: 1, normal: 1.5, tinggi: 2, '4k': 3 };
+let gfxQuality = localStorage.getItem('dino_gfxQuality') || 'normal';
+if (!GFX_LEVELS[gfxQuality]) gfxQuality = 'normal';
+function effectiveDPR() {
+  const cap = GFX_LEVELS[gfxQuality] || 1.5;
+  return Math.min(window.devicePixelRatio || 1, cap);
+}
+// Dipakai buat atur jumlah partikel (hujan/angin/kabut/jejak kaki) supaya
+// mode "Rendah" tetap ringan di HP lawas, dan "4K" lebih rimbun/detail.
+function gfxParticleMul() {
+  return gfxQuality === 'rendah' ? 0.5 : gfxQuality === 'tinggi' ? 1.3 : gfxQuality === '4k' ? 1.6 : 1;
+}
+function setGfxQuality(q) {
+  if (!GFX_LEVELS[q]) return;
+  gfxQuality = q;
+  localStorage.setItem('dino_gfxQuality', q);
+  document.body.dataset.gfx = q;
+  resizeCanvas();
+}
+
 /* ===================== SISTEM AKUN LOKAL (PROFIL + BACKUP) =====================
    1) Profil lokal bernama (bisa lebih dari satu di HP/browser yang sama) supaya
       data antar pemain tidak tercampur.
@@ -228,7 +281,7 @@ const JUMP_FORCE = -12.5;
       juga tidak pernah tercampur. Tanpa akun online, semua tetap berjalan
       100% lokal seperti biasa.
 ================================================================================ */
-const PROFILE_KEYS = ['highScore', 'coins', 'diamonds', 'unlocked', 'selectedSkin', 'questProgress', 'questCompleted', 'mantraCount', 'chapter2StageDone', 'chapter2IntroSeen', 'achievements', 'bestStreak', 'dailyDate', 'dailyChallengeId', 'dailyDone', 'dailyClaimed'];
+const PROFILE_KEYS = ['highScore', 'coins', 'diamonds', 'unlocked', 'selectedSkin', 'questProgress', 'questCompleted', 'mantraCount', 'chapter2StageDone', 'chapter2IntroSeen', 'achievements', 'bestStreak', 'dailyDate', 'dailyChallengeId', 'dailyDone', 'dailyClaimed', 'unlockedTrails', 'selectedTrail'];
 function profileStorageKey(profileId, key) { return `dino_p_${profileId}_${key}`; }
 function simpleHash(str) {
   let h = 0;
@@ -316,7 +369,8 @@ function exportSave() {
       highScore: data.highScore, coins: data.coins, diamonds: data.diamonds, unlocked: data.unlocked,
       selectedSkin: data.selectedSkin, questProgress: data.questProgress, questCompleted: data.questCompleted,
       mantraCount: data.mantraCount, chapter2StageDone: data.chapter2StageDone, chapter2IntroSeen: data.chapter2IntroSeen,
-      achievements: data.achievements, bestStreak: data.bestStreak
+      achievements: data.achievements, bestStreak: data.bestStreak,
+      unlockedTrails: data.unlockedTrails, selectedTrail: data.selectedTrail
     }
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -347,6 +401,8 @@ function handleImportSaveFile(file) {
     localStorage.setItem(profileStorageKey(id, 'chapter2IntroSeen'), String(!!payload.data.chapter2IntroSeen));
     localStorage.setItem(profileStorageKey(id, 'achievements'), JSON.stringify(payload.data.achievements || []));
     localStorage.setItem(profileStorageKey(id, 'bestStreak'), String(payload.data.bestStreak || 0));
+    localStorage.setItem(profileStorageKey(id, 'unlockedTrails'), JSON.stringify(payload.data.unlockedTrails || [0]));
+    localStorage.setItem(profileStorageKey(id, 'selectedTrail'), String(payload.data.selectedTrail || 0));
     data = loadData();
     refreshLobbyStats();
     renderAccountScreen();
@@ -562,7 +618,9 @@ function loadData() {
     dailyDate: get('dailyDate', ''),
     dailyChallengeId: get('dailyChallengeId', ''),
     dailyDone: get('dailyDone', 'false') === 'true',
-    dailyClaimed: get('dailyClaimed', 'false') === 'true'
+    dailyClaimed: get('dailyClaimed', 'false') === 'true',
+    unlockedTrails: JSON.parse(get('unlockedTrails', '[0]')),
+    selectedTrail: parseInt(get('selectedTrail', '0'), 10)
   };
 }
 let data = loadData();
@@ -585,6 +643,8 @@ function saveData() {
   set('dailyChallengeId', data.dailyChallengeId);
   set('dailyDone', String(data.dailyDone));
   set('dailyClaimed', String(data.dailyClaimed));
+  set('unlockedTrails', JSON.stringify(data.unlockedTrails));
+  set('selectedTrail', String(data.selectedTrail));
   scheduleServerPush();
 }
 /* Simpan checkpoint story mode: dipanggil tiap kali sebuah bos berhasil dikalahkan,
@@ -650,6 +710,22 @@ const SKINS = [
     shimmer: true, shimmerColor: '#ffd9a0', shimmerDark: '#c76f2c', affinity: 'shield' },
 ];
 function getSkin(id) { return SKINS.find(s => s.id === id) || SKINS[0]; }
+
+/* ===================== FITUR BARU: EFEK JEJAK KAKI (TRAIL) =====================
+   Independen dari skin — pemain bisa gonta-ganti warna/bentuk partikel yang
+   muncul di belakang dino saat lari, dibeli terpisah pakai koin/berlian. */
+const TRAIL_EFFECTS = [
+  { id: 0, name: 'Debu Klasik', cost: 0, type: 'dust', color: '#a08a6a' },
+  { id: 1, name: 'Api Membara', cost: 60, type: 'flame', color: '#ff7a33', color2: '#ffcf3c' },
+  { id: 2, name: 'Kristal Es', cost: 60, type: 'ice', color: '#8fe3ff', color2: '#eafcff' },
+  { id: 3, name: 'Bintang Kilau', cost: 90, type: 'star', color: '#ffe36b', color2: '#fff6cf' },
+  { id: 4, name: 'Daun Musim Gugur', cost: 90, type: 'leaf', color: '#c98f3f', color2: '#e0b95e' },
+  { id: 5, name: 'Petir Elektrik', cost: 50, costType: 'diamond', type: 'electric', color: '#c9a8ff', color2: '#fff' },
+  { id: 6, name: 'Gelembung Air', cost: 70, type: 'bubble', color: '#8fd3f0', color2: '#eafcff' },
+  { id: 7, name: 'Pelangi Ajaib', cost: 80, costType: 'diamond', type: 'rainbow', color: '#ff6b6b' },
+];
+function getTrail(id) { return TRAIL_EFFECTS.find(t => t.id === id) || TRAIL_EFFECTS[0]; }
+const RAINBOW_COLORS = ['#ff6b6b', '#ffb238', '#ffe36b', '#7ed957', '#4fd6c8', '#5ec8ff', '#b06fff'];
 
 /* ===================== BUFFS ===================== */
 const BUFF_TYPES = {
@@ -1528,7 +1604,7 @@ function startQuest(forceNew) {
   qPopups = [];
   qGroundOffset = 0;
   qClouds = [];
-  for (let i = 0; i < 4; i++) qClouds.push({ x: Math.random() * (canvas.width || 400), y: 20 + Math.random() * 100, w: 34 + Math.random() * 30 });
+  for (let i = 0; i < 4; i++) qClouds.push({ x: Math.random() * (VW || 400), y: 20 + Math.random() * 100, w: 34 + Math.random() * 30 });
   qBloodParticles = [];
   qInitDecor();
   const sz = questDinoSize();
@@ -1572,11 +1648,11 @@ function qSpawnEntity() {
   const map = MAPS[qMapIndex];
   const isRock = Math.random() < 0.32;
   if (isRock) {
-    qEntities.push({ type: 'rock', x: canvas.width + 30, w: 20, h: 30, y: GROUND_Y - 30 });
+    qEntities.push({ type: 'rock', x: VW + 30, w: 20, h: 30, y: GROUND_Y - 30 });
   } else {
     const hp = 1 + Math.floor(qAge / 30);
     qEntities.push({
-      type: 'enemy', mapId: map.id, x: canvas.width + 30,
+      type: 'enemy', mapId: map.id, x: VW + 30,
       w: 34, h: 28, y: GROUND_Y - 28, hp, maxHp: hp, hitFlash: 0, walkPhase: Math.random() * 10
     });
   }
@@ -1590,7 +1666,7 @@ function qTriggerBoss() {
   qBoss = {
     name: map.bossName, mapId: map.id,
     hp: 5 + qMapIndex * 2, maxHp: 5 + qMapIndex * 2,
-    x: canvas.width + 80, y: GROUND_Y - 68, w: 78, h: 78,
+    x: VW + 80, y: GROUND_Y - 68, w: 78, h: 78,
     attackTimer: 0, warnUntil: 0, strikeUntil: 0, hitFlash: 0,
     arrived: false, bobPhase: 0, bloodRatio: 0
   };
@@ -1759,7 +1835,7 @@ function questUpdate() {
   }
 
   qGroundOffset += qSpeed;
-  qClouds.forEach(c => { c.x -= qSpeed * 0.3; if (c.x < -60) { c.x = canvas.width + Math.random() * 100; c.y = 20 + Math.random() * (GROUND_Y * 0.3); } });
+  qClouds.forEach(c => { c.x -= qSpeed * 0.3; if (c.x < -60) { c.x = VW + Math.random() * 100; c.y = 20 + Math.random() * (GROUND_Y * 0.3); } });
   qUpdateDecor();
   updateBossBlood();
 
@@ -1831,7 +1907,7 @@ function startChapter2() {
   q2Weather = 'calm';
   q2WeatherTimer = 0;
   q2Lightnings = [];
-  const cw = canvas.width || 400, ch = canvas.height || 700;
+  const cw = VW || 400, ch = VH || 700;
   for (let i = 0; i < 5; i++) q2Clouds.push({ x: Math.random() * cw, y: 20 + Math.random() * (ch * 0.75), w: 40 + Math.random() * 40 });
   dino.w = 56; dino.h = 44;
   q2Y = ch * 0.45;
@@ -1869,7 +1945,7 @@ function q2FireBreath() {
   if (!hit) qPopups.push({ x: dino.x + dino.w + 30, y: q2Y + dino.h / 2, text: '×', color: '#999', life: 20 });
 }
 function q2SpawnEntity() {
-  const w = canvas.width || 400, h = canvas.height || 700;
+  const w = VW || 400, h = VH || 700;
   const y = 40 + Math.random() * Math.max(80, h - 160);
   if (Math.random() < 0.34) {
     q2Entities.push({ type: 'mantra', x: w + 30, y, w: 26, h: 26, spin: Math.random() * 10 });
@@ -1883,7 +1959,7 @@ function q2SpawnEntity() {
   }
 }
 function q2SpawnLightning() {
-  const w = canvas.width || 400, ch = canvas.height || 700;
+  const w = VW || 400, ch = VH || 700;
   const bandH = 120 + Math.random() * 50;
   const bandY = 20 + Math.random() * Math.max(40, ch - bandH - 60);
   q2Lightnings.push({ x: 50 + Math.random() * (w - 100), timer: 48, state: 'warn', bandY, bandH });
@@ -1900,7 +1976,7 @@ function q2Update() {
   q2Vy += q2Thrust ? THRUST : GRAV2;
   q2Vy = Math.max(-7, Math.min(6, q2Vy));
   q2Y += q2Vy;
-  const ch = canvas.height || 700;
+  const ch = VH || 700;
   const topBound = 20, botBound = ch - dino.h - 40;
   if (q2Y < topBound) { q2Y = topBound; q2Vy = 0; }
   if (q2Y > botBound) { q2Y = botBound; q2Vy = 0; }
@@ -1971,7 +2047,7 @@ function q2Update() {
   }
   q2Lightnings = q2Lightnings.filter(l => !((l.state === 'strike' || l.state === 'fizzle') && l.timer <= 0));
 
-  const cw = canvas.width || 400;
+  const cw = VW || 400;
   q2Clouds.forEach(c => { c.x -= q2Speed * 0.4; if (c.x < -80) { c.x = cw + Math.random() * 100; c.y = 20 + Math.random() * (ch * 0.75); } });
 
   qPopups.forEach(p => { p.y -= 0.6; p.life--; });
@@ -1999,7 +2075,7 @@ function q2CompleteStage() {
   }, 'KEMBALI');
 }
 function q2DrawBackground() {
-  const cw = canvas.width, ch = canvas.height;
+  const cw = VW, ch = VH;
   const g = ctx.createLinearGradient(0, 0, 0, ch);
   if (q2Weather === 'storm') {
     g.addColorStop(0, '#2b2f3d'); g.addColorStop(0.55, '#4a4f63'); g.addColorStop(1, '#8b8fa3');
@@ -2145,11 +2221,11 @@ function q2Draw() {
 function qSkyColors() { return MAPS[qMapIndex].sky; }
 function qDrawBackground() {
   const [top, bottom] = qSkyColors();
-  const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  const g = ctx.createLinearGradient(0, 0, 0, VH);
   g.addColorStop(0, top); g.addColorStop(1, bottom);
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const sx = canvas.width * 0.84, sy = canvas.height * 0.15, sr = 30;
+  ctx.fillRect(0, 0, VW, VH);
+  const sx = VW * 0.84, sy = VH * 0.15, sr = 30;
   const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr * 2.2);
   sg.addColorStop(0, 'rgba(255,235,180,0.7)'); sg.addColorStop(1, 'rgba(255,235,180,0)');
   ctx.fillStyle = sg;
@@ -2170,7 +2246,7 @@ let qHills = [];
 function qInitHills() {
   qHills = [];
   let x = -20;
-  while (x < (canvas.width || 400) + 60) {
+  while (x < (VW || 400) + 60) {
     qHills.push({ x, w: 90 + Math.random() * 70, h: 30 + Math.random() * 34 });
     x += 70 + Math.random() * 50;
   }
@@ -2189,7 +2265,7 @@ function qDrawFarHills() {
     ctx.moveTo(hx, base);
     ctx.quadraticCurveTo(hx + hh.w / 2, base - hh.h, hx + hh.w, base);
   });
-  ctx.lineTo(canvas.width, base + 60);
+  ctx.lineTo(VW, base + 60);
   ctx.lineTo(0, base + 60);
   ctx.closePath();
   ctx.fill();
@@ -2229,7 +2305,7 @@ function qUpdateDecor() {
   qDecor = qDecor.filter(d => d.x > -70);
   while (qDecor.length < 7) {
     const last = qDecor[qDecor.length - 1];
-    const x = (last ? last.x : canvas.width) + 55 + Math.random() * 85;
+    const x = (last ? last.x : VW) + 55 + Math.random() * 85;
     qDecor.push({ x, seed: Math.random(), variant: Math.floor(Math.random() * 3) });
   }
 }
@@ -2327,13 +2403,13 @@ function drawMapDecorItem(dctx, mapId, x, gy, seed, variant) {
 }
 function qDrawGround() {
   const map = MAPS[qMapIndex];
-  const dg = ctx.createLinearGradient(0, GROUND_Y, 0, canvas.height);
+  const dg = ctx.createLinearGradient(0, GROUND_Y, 0, VH);
   dg.addColorStop(0, map.dirt); dg.addColorStop(1, map.groundDark);
   ctx.fillStyle = dg;
-  ctx.fillRect(0, GROUND_Y + 6, canvas.width, canvas.height - GROUND_Y - 6);
+  ctx.fillRect(0, GROUND_Y + 6, VW, VH - GROUND_Y - 6);
   ctx.fillStyle = map.ground;
-  ctx.fillRect(0, GROUND_Y - 2, canvas.width, 8);
-  const count = Math.ceil(canvas.width / 22) + 2;
+  ctx.fillRect(0, GROUND_Y - 2, VW, 8);
+  const count = Math.ceil(VW / 22) + 2;
   for (let i = 0; i < count; i++) {
     const x = (i * 22 - qGroundOffset % 22);
     ctx.fillStyle = map.groundDark;
@@ -2720,7 +2796,7 @@ function qDrawBoss() {
   }
   if (qBoss.strikeUntil > 0) {
     ctx.fillStyle = 'rgba(255,40,40,0.55)';
-    ctx.fillRect(0, GROUND_Y - 6, canvas.width, 6);
+    ctx.fillRect(0, GROUND_Y - 6, VW, 6);
   }
 }
 function qDrawPopups() {
@@ -2809,10 +2885,18 @@ const dino = {
 };
 
 function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-  GROUND_Y = Math.floor(canvas.height * 0.68);
-  dino.x = Math.floor(canvas.width * 0.12);
+  VW = window.innerWidth;
+  VH = window.innerHeight;
+  const dpr = effectiveDPR();
+  canvas.width = Math.round(VW * dpr);
+  canvas.height = Math.round(VH * dpr);
+  canvas.style.width = VW + 'px';
+  canvas.style.height = VH + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.imageSmoothingEnabled = gfxQuality !== 'rendah';
+  if (ctx.imageSmoothingQuality) ctx.imageSmoothingQuality = gfxQuality === '4k' ? 'high' : gfxQuality === 'rendah' ? 'low' : 'medium';
+  GROUND_Y = Math.floor(VH * 0.68);
+  dino.x = Math.floor(VW * 0.12);
   if (state !== 'playing') resetDino();
 }
 function resetDino() {
@@ -3299,9 +3383,9 @@ let nextDiamondGap = 700 + Math.random() * 400;
 let clouds = [];
 function initClouds() {
   clouds = [];
-  const n = weather === 'rain' ? 7 : 4;
+  const n = Math.round((weather === 'rain' ? 7 : 4) * gfxParticleMul());
   for (let i = 0; i < n; i++) {
-    clouds.push({ x: Math.random() * canvas.width, y: 20 + Math.random() * (GROUND_Y * 0.3), w: 34 + Math.random() * 30 });
+    clouds.push({ x: Math.random() * VW, y: 20 + Math.random() * (GROUND_Y * 0.3), w: 34 + Math.random() * 30 });
   }
 }
 
@@ -3319,17 +3403,19 @@ let hillOffsetBack = 0, hillOffsetFront = 0;
 let rainDrops = [];
 function initRain() {
   rainDrops = [];
-  for (let i = 0; i < 60; i++) {
-    rainDrops.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, len: 10 + Math.random() * 10, speed: 8 + Math.random() * 6 });
+  const n = Math.round(60 * gfxParticleMul());
+  for (let i = 0; i < n; i++) {
+    rainDrops.push({ x: Math.random() * VW, y: Math.random() * VH, len: 10 + Math.random() * 10, speed: 8 + Math.random() * 6 });
   }
 }
 
 let fogPatches = [];
 function initFog() {
   fogPatches = [];
-  for (let i = 0; i < 10; i++) {
+  const n = Math.round(10 * gfxParticleMul());
+  for (let i = 0; i < n; i++) {
     fogPatches.push({
-      x: Math.random() * canvas.width,
+      x: Math.random() * VW,
       y: GROUND_Y - 10 - Math.random() * 160,
       w: 120 + Math.random() * 160,
       speed: 0.5 + Math.random() * 0.9,
@@ -3343,13 +3429,15 @@ let windLeaves = [];
 const LEAF_COLORS = ['#c98f3f', '#d9a94f', '#b5762f', '#e0b95e'];
 function initWind() {
   windLines = [];
-  for (let i = 0; i < 18; i++) {
-    windLines.push({ x: Math.random() * canvas.width, y: Math.random() * GROUND_Y, len: 20 + Math.random() * 30, speed: 10 + Math.random() * 8 });
+  const nLines = Math.round(18 * gfxParticleMul());
+  for (let i = 0; i < nLines; i++) {
+    windLines.push({ x: Math.random() * VW, y: Math.random() * GROUND_Y, len: 20 + Math.random() * 30, speed: 10 + Math.random() * 8 });
   }
   windLeaves = [];
-  for (let i = 0; i < 14; i++) {
+  const nLeaves = Math.round(14 * gfxParticleMul());
+  for (let i = 0; i < nLeaves; i++) {
     windLeaves.push({
-      x: Math.random() * canvas.width,
+      x: Math.random() * VW,
       y: Math.random() * GROUND_Y,
       size: 5 + Math.random() * 5,
       speed: 6 + Math.random() * 7,
@@ -3362,15 +3450,17 @@ function initWind() {
 }
 
 function spawnObstacle() {
-  const groundTypes = ['cactusSmall', 'cactusBig', 'cactusGroup'];
+  const groundTypes = ['cactusSmall', 'cactusBig', 'cactusGroup', 'rockPile', 'logObstacle'];
   let pool = [...groundTypes, ...groundTypes];
 
+  if (biome === 'salju') pool.push('snowMound', 'snowMound');
   if (weather === 'rain') pool.push('lightning');
   if (weather === 'wind') pool.push('flyingLow', 'flyingHigh', 'flyingDebris');
   if (weather === 'kabut') pool.push('batuKabut', 'batuKabut');
+  if (weather === 'clear') pool.push('beehive');
 
   const type = pool[Math.floor(Math.random() * pool.length)];
-  let obs = { type, x: canvas.width + 30 };
+  let obs = { type, x: VW + 30 };
 
   if (type === 'cactusSmall') {
     obs.w = 18; obs.h = 36; obs.y = GROUND_Y - obs.h;
@@ -3378,6 +3468,14 @@ function spawnObstacle() {
     obs.w = 26; obs.h = 52; obs.y = GROUND_Y - obs.h;
   } else if (type === 'cactusGroup') {
     obs.w = 52; obs.h = 36; obs.y = GROUND_Y - obs.h;
+  } else if (type === 'rockPile') {
+    obs.w = 40; obs.h = 30; obs.y = GROUND_Y - obs.h;
+  } else if (type === 'logObstacle') {
+    obs.w = 46; obs.h = 20; obs.y = GROUND_Y - obs.h;
+  } else if (type === 'snowMound') {
+    obs.w = 38; obs.h = 26; obs.y = GROUND_Y - obs.h;
+  } else if (type === 'beehive') {
+    obs.w = 32; obs.h = 32; obs.y = GROUND_Y - 60 - Math.random() * 50; obs.swing = Math.random() * Math.PI * 2;
   } else if (type === 'lightning') {
     obs.w = 24; obs.h = 60; obs.y = GROUND_Y - obs.h;
     obs.state = 'warning'; obs.timer = 0; obs.warnFrames = 45;
@@ -3397,7 +3495,7 @@ function spawnObstacle() {
 function spawnCoin() {
   const highChance = Math.random() < 0.4;
   const y = highChance ? GROUND_Y - 95 : GROUND_Y - 34;
-  coins.push({ x: canvas.width + 30, y, r: 12, collected: false, spin: 0 });
+  coins.push({ x: VW + 30, y, r: 12, collected: false, spin: 0 });
 }
 
 function spawnBuff() {
@@ -3405,13 +3503,13 @@ function spawnBuff() {
   const type = pool[Math.floor(Math.random() * pool.length)];
   const highChance = Math.random() < 0.5;
   const y = highChance ? GROUND_Y - 100 : GROUND_Y - 38;
-  buffs.push({ x: canvas.width + 30, y, r: 16, type, collected: false, bob: Math.random() * Math.PI * 2 });
+  buffs.push({ x: VW + 30, y, r: 16, type, collected: false, bob: Math.random() * Math.PI * 2 });
 }
 
 function spawnDiamond() {
   const highChance = Math.random() < 0.5;
   const y = highChance ? GROUND_Y - 105 : GROUND_Y - 34;
-  diamonds.push({ x: canvas.width + 30, y, r: 11, collected: false, spin: 0 });
+  diamonds.push({ x: VW + 30, y, r: 11, collected: false, spin: 0 });
 }
 
 /* ===================== WEATHER LOGIC ===================== */
@@ -3593,6 +3691,72 @@ function renderShop() {
         AudioMgr.sfx('click');
         saveData();
         renderShop();
+      }
+    });
+  });
+  renderTrailShop();
+}
+
+function renderTrailShop() {
+  const grid = document.getElementById('trailGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  TRAIL_EFFECTS.forEach(t => {
+    const unlocked = data.unlockedTrails.includes(t.id);
+    const selected = data.selectedTrail === t.id;
+    const costType = t.costType || 'coin';
+    const wallet = costType === 'diamond' ? data.diamonds : data.coins;
+    const icon = costType === 'diamond' ? '💎' : '🪙';
+    const card = document.createElement('div');
+    card.className = 'skin-card' + (selected ? ' selected' : '');
+    let btnHtml;
+    if (selected) {
+      btnHtml = `<button class="skin-btn selected" disabled>DIPAKAI</button>`;
+    } else if (unlocked) {
+      btnHtml = `<button class="skin-btn select" data-id="${t.id}" data-action="select">PILIH</button>`;
+    } else {
+      const afford = wallet >= t.cost;
+      btnHtml = `<button class="skin-btn ${afford ? 'buy' : 'locked'}${costType === 'diamond' ? ' buy-diamond' : ''}" data-id="${t.id}" data-action="buy" ${afford ? '' : 'disabled'}>BELI ${icon}${t.cost}</button>`;
+    }
+    const swatchCanvas = document.createElement('canvas');
+    swatchCanvas.width = 112; swatchCanvas.height = 60;
+    swatchCanvas.className = 'skin-swatch';
+    card.innerHTML = `<div class="skin-name">${t.name}</div>${btnHtml}`;
+    card.prepend(swatchCanvas);
+    grid.appendChild(card);
+    const sctx = swatchCanvas.getContext('2d');
+    sctx.fillStyle = t.color2 || t.color;
+    for (let i = 0; i < 8; i++) {
+      const px = 10 + i * 13, py = 30 + Math.sin(i) * 10;
+      sctx.globalAlpha = 0.5 + (i / 8) * 0.5;
+      sctx.beginPath();
+      sctx.arc(px, py, 3 + (i / 8) * 4, 0, Math.PI * 2);
+      sctx.fillStyle = t.type === 'rainbow' ? RAINBOW_COLORS[i % RAINBOW_COLORS.length] : (i % 2 === 0 ? t.color : (t.color2 || t.color));
+      sctx.fill();
+    }
+    sctx.globalAlpha = 1;
+  });
+  grid.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = parseInt(btn.dataset.id, 10);
+      const action = btn.dataset.action;
+      const t = getTrail(id);
+      if (action === 'buy') {
+        const costType = t.costType || 'coin';
+        if (costType === 'diamond' && data.diamonds >= t.cost) {
+          data.diamonds -= t.cost;
+          data.unlockedTrails.push(id);
+          data.selectedTrail = id;
+          AudioMgr.sfx('buy'); saveData(); renderShop();
+        } else if (costType !== 'diamond' && data.coins >= t.cost) {
+          data.coins -= t.cost;
+          data.unlockedTrails.push(id);
+          data.selectedTrail = id;
+          AudioMgr.sfx('buy'); saveData(); renderShop();
+        }
+      } else if (action === 'select') {
+        data.selectedTrail = id;
+        AudioMgr.sfx('click'); saveData(); renderShop();
       }
     });
   });
@@ -3885,7 +4049,17 @@ function refreshSettingsUI() {
   sfxBtn.classList.toggle('off', !AudioMgr.sfxOn);
   document.getElementById('musicVolSlider').value = AudioMgr.musicVol;
   document.getElementById('sfxVolSlider').value = AudioMgr.sfxVol;
+  document.querySelectorAll('.gfx-q-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.q === gfxQuality);
+  });
 }
+document.querySelectorAll('.gfx-q-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    setGfxQuality(btn.dataset.q);
+    refreshSettingsUI();
+    AudioMgr.sfx('click');
+  });
+});
 document.getElementById('settingsIconBtn').addEventListener('click', () => {
   refreshSettingsUI();
   document.getElementById('settingsOverlay').classList.add('active');
@@ -4199,6 +4373,77 @@ function drawObstacle(o) {
     return;
   }
 
+  if (o.type === 'rockPile') {
+    ctx.save();
+    ctx.fillStyle = '#8a8a86';
+    ctx.beginPath(); ctx.ellipse(o.x + o.w * 0.28, o.y + o.h * 0.65, o.w * 0.3, o.h * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#9c9c96';
+    ctx.beginPath(); ctx.ellipse(o.x + o.w * 0.62, o.y + o.h * 0.55, o.w * 0.36, o.h * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#6f6f6a';
+    ctx.beginPath(); ctx.ellipse(o.x + o.w * 0.5, o.y + o.h * 0.8, o.w * 0.46, o.h * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(o.x + o.w * 0.5, o.y + o.h * 0.3); ctx.lineTo(o.x + o.w * 0.55, o.y + o.h * 0.55); ctx.stroke();
+    ctx.restore();
+    return;
+  }
+
+  if (o.type === 'logObstacle') {
+    ctx.save();
+    ctx.fillStyle = '#7a5233';
+    roundRectPath(ctx, o.x, o.y, o.w, o.h, o.h * 0.45); ctx.fill();
+    ctx.fillStyle = '#5c3c22';
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath();
+      ctx.ellipse(o.x + (o.w / 4) * i, o.y + o.h / 2, 2, o.h * 0.32, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#e8d3a8';
+    ctx.beginPath(); ctx.ellipse(o.x + o.w - 4, o.y + o.h / 2, o.h * 0.4, o.h * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#c9a25c';
+    ctx.beginPath(); ctx.ellipse(o.x + o.w - 4, o.y + o.h / 2, o.h * 0.22, o.h * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+
+  if (o.type === 'snowMound') {
+    ctx.save();
+    ctx.fillStyle = '#eef6fa';
+    roundRectPath(ctx, o.x, o.y + o.h * 0.25, o.w, o.h * 0.75, 10); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(o.x + o.w * 0.5, o.y + o.h * 0.28, o.w * 0.42, o.h * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(180,210,225,0.55)';
+    ctx.beginPath(); ctx.ellipse(o.x + o.w * 0.3, o.y + o.h * 0.75, o.w * 0.28, o.h * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(o.x + o.w * 0.65, o.y + o.h * 0.18, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+
+  if (o.type === 'beehive') {
+    const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+    o.swing += 0.06;
+    const sway = Math.sin(o.swing) * 6;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(90,70,40,0.6)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx, o.y - 12); ctx.lineTo(cx + sway * 0.3, o.y); ctx.stroke();
+    ctx.translate(cx + sway * 0.3, cy);
+    ctx.fillStyle = '#e0a838';
+    ctx.beginPath(); ctx.moveTo(0, -o.h / 2);
+    ctx.lineTo(o.w * 0.4, -o.h * 0.15); ctx.lineTo(o.w * 0.34, o.h * 0.35);
+    ctx.lineTo(0, o.h / 2); ctx.lineTo(-o.w * 0.34, o.h * 0.35);
+    ctx.lineTo(-o.w * 0.4, -o.h * 0.15); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(120,80,20,0.5)'; ctx.lineWidth = 1;
+    [-0.25, 0, 0.25].forEach(f => { ctx.beginPath(); ctx.moveTo(-o.w * 0.35, o.h * f); ctx.lineTo(o.w * 0.35, o.h * f); ctx.stroke(); });
+    for (let i = 0; i < 3; i++) {
+      const a = o.swing * 2 + i * 2.1;
+      ctx.fillStyle = '#3a3a3a';
+      ctx.beginPath(); ctx.arc(Math.cos(a) * (o.w * 0.7), Math.sin(a) * (o.h * 0.55), 2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    return;
+  }
+
   const cc = cactusColors();
   ctx.fillStyle = cc.main;
   if (o.type === 'cactusGroup') {
@@ -4336,36 +4581,65 @@ function drawPopups() {
   });
 }
 
+/* BUGFIX (peta ikut biome asli saat cuaca berubah):
+   Sebelumnya tiap cuaca (hujan/angin/kabut) punya set warna sendiri yang
+   MENIMPA TOTAL warna biome — jadi mau lagi di gurun, salju, atau hutan,
+   begitu hujan turun semua map keliatan sama semua (kaya map padang rumput
+   default). Sekarang cuaca cuma "menoning" warna biome asli (blend ringan),
+   jadi ciri khas tiap biome tetap kelihatan walau lagi hujan/berangin/berkabut. */
+function hexToRgb(hex) {
+  const h = hex.replace('#', '');
+  return [parseInt(h.substring(0, 2), 16), parseInt(h.substring(2, 4), 16), parseInt(h.substring(4, 6), 16)];
+}
+function blendHex(hex, tintHex, amount) {
+  const [r1, g1, b1] = hexToRgb(hex);
+  const [r2, g2, b2] = hexToRgb(tintHex);
+  const r = Math.round(r1 + (r2 - r1) * amount);
+  const g = Math.round(g1 + (g2 - g1) * amount);
+  const b = Math.round(b1 + (b2 - b1) * amount);
+  return `rgb(${r},${g},${b})`;
+}
+const WEATHER_TINT = {
+  rain:  { color: '#3f4d5c', amount: 0.40 },
+  wind:  { color: '#e8b96a', amount: 0.26 },
+  kabut: { color: '#cdd4d6', amount: 0.55 }
+};
 function skyColors() {
-  if (weather === 'rain') return ['#5b6b7a', '#aab6c2'];
-  if (weather === 'wind') return ['#f2c98a', '#fdeccb'];
-  if (weather === 'kabut') return ['#b9c2c9', '#e6ebee'];
-  return BIOMES[biome].sky;
+  const base = BIOMES[biome].sky;
+  const tint = WEATHER_TINT[weather];
+  if (!tint) return base;
+  return [blendHex(base[0], tint.color, tint.amount), blendHex(base[1], tint.color, tint.amount * 0.7)];
 }
 function groundColors() {
-  if (weather === 'rain') return { grass: '#3d5a3d', grassDark: '#2c4128', dirt: '#4a3a2e', dirtDark: '#39291f' };
-  if (weather === 'wind') return { grass: '#b5a94f', grassDark: '#8f8536', dirt: '#c9a870', dirtDark: '#a8875a' };
-  if (weather === 'kabut') return { grass: '#7c8a86', grassDark: '#5e6a67', dirt: '#8a8078', dirtDark: '#6b6259' };
-  return BIOMES[biome].ground;
+  const g = BIOMES[biome].ground;
+  const tint = WEATHER_TINT[weather];
+  if (!tint) return g;
+  return {
+    grass: blendHex(g.grass, tint.color, tint.amount),
+    grassDark: blendHex(g.grassDark, tint.color, tint.amount),
+    dirt: blendHex(g.dirt, tint.color, tint.amount * 0.8),
+    dirtDark: blendHex(g.dirtDark, tint.color, tint.amount * 0.8)
+  };
 }
 function hillColor(layer) {
-  if (weather === 'rain') return layer === 'back' ? '#4a5a52' : '#3a4a40';
-  if (weather === 'wind') return layer === 'back' ? '#c9b878' : '#b8a05f';
-  if (weather === 'kabut') return layer === 'back' ? '#9aa3a6' : '#828b8e';
-  return layer === 'back' ? BIOMES[biome].hill.back : BIOMES[biome].hill.front;
+  const h = BIOMES[biome].hill;
+  const base = layer === 'back' ? h.back : h.front;
+  const tint = WEATHER_TINT[weather];
+  if (!tint) return base;
+  return blendHex(base, tint.color, tint.amount);
 }
 
 function drawBackground() {
   const [top, bottom] = skyColors();
-  const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  const g = ctx.createLinearGradient(0, 0, 0, VH);
   g.addColorStop(0, top);
   g.addColorStop(1, bottom);
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, VW, VH);
 
   // sun / moon
   if (weather !== 'rain' && weather !== 'kabut') {
-    const sx = canvas.width * 0.82, sy = canvas.height * 0.16, sr = 34;
+    const sx = VW * 0.82, sy = VH * 0.16, sr = 34;
     const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr * 2.2);
     if (weather === 'wind') {
       sg.addColorStop(0, 'rgba(255,200,120,0.9)');
@@ -4411,7 +4685,7 @@ function drawHillsLayer(list, offset, baseY, color) {
     ctx.moveTo(hx, baseY);
     ctx.quadraticCurveTo(hx + h.w / 2, baseY - h.h, hx + h.w, baseY);
   });
-  ctx.lineTo(canvas.width, baseY + 200);
+  ctx.lineTo(VW, baseY + 200);
   ctx.lineTo(0, baseY + 200);
   ctx.closePath();
   ctx.fill();
@@ -4476,18 +4750,18 @@ let groundOffset = 0;
 function drawGround() {
   const gc = groundColors();
   // dirt
-  const dg = ctx.createLinearGradient(0, GROUND_Y, 0, canvas.height);
+  const dg = ctx.createLinearGradient(0, GROUND_Y, 0, VH);
   dg.addColorStop(0, gc.dirt);
   dg.addColorStop(1, gc.dirtDark);
   ctx.fillStyle = dg;
-  ctx.fillRect(0, GROUND_Y + 6, canvas.width, canvas.height - GROUND_Y - 6);
+  ctx.fillRect(0, GROUND_Y + 6, VW, VH - GROUND_Y - 6);
 
   // grass strip
   ctx.fillStyle = gc.grass;
-  ctx.fillRect(0, GROUND_Y - 2, canvas.width, 8);
+  ctx.fillRect(0, GROUND_Y - 2, VW, 8);
 
   // grass tufts + pebbles
-  const count = Math.ceil(canvas.width / 22) + 2;
+  const count = Math.ceil(VW / 22) + 2;
   for (let i = 0; i < count; i++) {
     const x = (i * 22 - groundOffset % 22);
     const variant = i % 3;
@@ -4564,7 +4838,7 @@ function update() {
       if (o.timer >= o.warnFrames) {
         o.state = 'strike';
         o.strikeLife = 20;
-        if (o.x < canvas.width && o.x + o.w > 0) flashWhite();
+        if (o.x < VW && o.x + o.w > 0) flashWhite();
       }
     }
     if (o.type === 'lightning' && o.state === 'strike') o.strikeLife--;
@@ -4664,9 +4938,9 @@ function update() {
   }
 
   if (!dino.jumping && frame % 6 === 0) {
-    dustParticles.push({ x: dino.x + dino.w * 0.25, y: GROUND_Y - 2, life: 16, vx: -effSpeed * 0.5 - 1 });
+    spawnTrailParticle();
   }
-  dustParticles.forEach(d => { d.x += d.vx; d.life--; });
+  dustParticles.forEach(d => { d.x += d.vx; d.life--; if (d.vy !== undefined) { d.y += d.vy; d.vy += (d.grav || 0); } if (d.rot !== undefined) d.rot += d.rotSpeed || 0; });
   dustParticles = dustParticles.filter(d => d.life > 0);
 
   popups.forEach(p => { p.y -= 0.6; p.life--; });
@@ -4676,21 +4950,21 @@ function update() {
     rainDrops.forEach(d => {
       d.y += d.speed;
       d.x -= effSpeed * 0.3;
-      if (d.y > canvas.height) { d.y = -10; d.x = Math.random() * canvas.width; }
-      if (d.x < 0) d.x = canvas.width;
+      if (d.y > VH) { d.y = -10; d.x = Math.random() * VW; }
+      if (d.x < 0) d.x = VW;
     });
   }
   if (weather === 'wind') {
     windLines.forEach(l => {
       l.x -= l.speed;
-      if (l.x < -l.len) { l.x = canvas.width + Math.random() * 100; l.y = Math.random() * GROUND_Y; }
+      if (l.x < -l.len) { l.x = VW + Math.random() * 100; l.y = Math.random() * GROUND_Y; }
     });
     windLeaves.forEach(lf => {
       lf.x -= lf.speed;
       lf.rot += lf.rotSpeed;
       lf.bob += 0.07;
       if (lf.x < -20) {
-        lf.x = canvas.width + Math.random() * 100;
+        lf.x = VW + Math.random() * 100;
         lf.y = Math.random() * GROUND_Y;
       }
     });
@@ -4699,7 +4973,7 @@ function update() {
   if (weather === 'kabut') {
     fogPatches.forEach(f => {
       f.x -= effSpeed * 0.2 + f.speed;
-      if (f.x < -f.w) { f.x = canvas.width + Math.random() * 100; f.y = GROUND_Y - 10 - Math.random() * 160; }
+      if (f.x < -f.w) { f.x = VW + Math.random() * 100; f.y = GROUND_Y - 10 - Math.random() * 160; }
     });
   }
 
@@ -4708,7 +4982,7 @@ function update() {
   hillOffsetFront += effSpeed * 0.4;
   clouds.forEach(c => {
     c.x -= effSpeed * (weather === 'wind' ? 0.9 : 0.3);
-    if (c.x < -60) { c.x = canvas.width + Math.random() * 100; c.y = 20 + Math.random() * (GROUND_Y * 0.3); }
+    if (c.x < -60) { c.x = VW + Math.random() * 100; c.y = 20 + Math.random() * (GROUND_Y * 0.3); }
   });
 
   score += 0.15;
@@ -4720,14 +4994,92 @@ function update() {
 }
 
 /* ===================== DRAW ===================== */
+function spawnTrailParticle() {
+  const t = getTrail(data.selectedTrail);
+  const baseX = dino.x + dino.w * 0.25, baseY = GROUND_Y - 2;
+  const life = 16 + (t.type === 'leaf' || t.type === 'bubble' ? 10 : 0);
+  const p = { x: baseX, y: baseY, life, maxLife: life, vx: -effSpeed * 0.5 - 1, vy: 0, type: t.type, color: t.color, color2: t.color2 };
+  if (t.type === 'flame') { p.vy = -0.6; p.grav = -0.02; }
+  else if (t.type === 'ice' || t.type === 'star') { p.vy = -0.3 - Math.random() * 0.3; }
+  else if (t.type === 'leaf') { p.vy = -0.8; p.grav = 0.03; p.rot = Math.random() * Math.PI * 2; p.rotSpeed = (Math.random() - 0.5) * 0.25; }
+  else if (t.type === 'electric') { p.vy = (Math.random() - 0.5) * 1.2; }
+  else if (t.type === 'bubble') { p.vy = -0.9 - Math.random() * 0.4; }
+  else if (t.type === 'rainbow') { p.color = RAINBOW_COLORS[Math.floor(Math.random() * RAINBOW_COLORS.length)]; p.vy = -0.4; }
+  dustParticles.push(p);
+}
 function drawDust() {
   dustParticles.forEach(d => {
     ctx.save();
-    ctx.globalAlpha = Math.max(0, d.life / 16) * 0.4;
-    ctx.fillStyle = '#a08a6a';
-    ctx.beginPath();
-    ctx.ellipse(d.x, d.y - (16 - d.life) * 0.4, 5 + (16 - d.life) * 0.3, 3, 0, 0, Math.PI * 2);
-    ctx.fill();
+    const k = Math.max(0, d.life / d.maxLife);
+    const age = d.maxLife - d.life;
+    ctx.globalAlpha = k * 0.75;
+    switch (d.type) {
+      case 'flame': {
+        const grad = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, 6 + age * 0.3);
+        grad.addColorStop(0, d.color2); grad.addColorStop(1, d.color);
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(d.x, d.y, 4 + age * 0.25, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+      case 'ice': {
+        ctx.fillStyle = d.color;
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = (Math.PI / 3) * i;
+          const r = 3 + age * 0.15;
+          const px = d.x + Math.cos(a) * r, py = d.y + Math.sin(a) * r;
+          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.closePath(); ctx.fill();
+        break;
+      }
+      case 'star': case 'rainbow': {
+        ctx.fillStyle = d.color;
+        ctx.translate(d.x, d.y);
+        ctx.rotate(age * 0.15);
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const a = (Math.PI * 2 / 5) * i - Math.PI / 2;
+          const r = i % 2 === 0 ? 4 : 2;
+          const px = Math.cos(a) * r, py = Math.sin(a) * r;
+          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.closePath(); ctx.fill();
+        break;
+      }
+      case 'leaf': {
+        ctx.translate(d.x, d.y);
+        ctx.rotate(d.rot || 0);
+        ctx.fillStyle = d.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 5, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+      }
+      case 'electric': {
+        ctx.strokeStyle = d.color; ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(d.x - 4, d.y - 3);
+        ctx.lineTo(d.x, d.y);
+        ctx.lineTo(d.x - 3, d.y + 1);
+        ctx.lineTo(d.x + 3, d.y + 4);
+        ctx.stroke();
+        break;
+      }
+      case 'bubble': {
+        ctx.strokeStyle = d.color; ctx.fillStyle = d.color2; ctx.lineWidth = 1;
+        ctx.globalAlpha = k * 0.35;
+        ctx.beginPath(); ctx.arc(d.x, d.y, 3 + age * 0.1, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        break;
+      }
+      default: {
+        ctx.globalAlpha = k * 0.4;
+        ctx.fillStyle = d.color || '#a08a6a';
+        ctx.beginPath();
+        ctx.ellipse(d.x, d.y - (16 - d.life) * 0.4, 5 + (16 - d.life) * 0.3, 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
     ctx.restore();
   });
 }
@@ -4776,6 +5128,7 @@ document.addEventListener('click', (e) => {
   AudioMgr.sfx('click');
 }, true);
 
+document.body.dataset.gfx = gfxQuality;
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 initClouds();

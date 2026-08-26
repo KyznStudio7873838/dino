@@ -93,6 +93,15 @@ body[data-gfx="rendah"] .buff-chip {
     border-radius: 3px;
     transition: width 0.15s linear;
   }
+  .buff-chip.boosted {
+    border-color: rgba(255,214,60,0.9);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.25), 0 0 0 2px rgba(255,214,60,0.35);
+  }
+  .boost-star {
+    color: #ffd63c;
+    font-size: 10px;
+    margin-left: -2px;
+  }
 
   /* Tombol Jeda (pause) — sekarang jadi satu grup dengan SKOR di pojok kiri atas */
   #pauseBtn {
@@ -998,6 +1007,16 @@ body[data-gfx="rendah"] .buff-chip {
     background: radial-gradient(ellipse at 50% 30%, rgba(255,255,255,0.5), rgba(255,255,255,0) 60%);
   }
   .skin-name { font-size: 12px; font-weight: bold; margin-bottom: 6px; color: #3a3a3a; }
+  .skin-affinity-tag {
+    font-size: 9.5px;
+    font-weight: bold;
+    color: #5a8a3a;
+    background: rgba(111,191,79,0.14);
+    border-radius: 8px;
+    padding: 3px 6px;
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
   .skin-btn {
     font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 11px;

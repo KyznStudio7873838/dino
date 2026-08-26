@@ -718,6 +718,30 @@ const SKINS = [
     shimmer: true, shimmerColor: '#ffd9a0', shimmerDark: '#c76f2c', affinity: 'shield' },
 ];
 function getSkin(id) { return SKINS.find(s => s.id === id) || SKINS[0]; }
+// Label singkat yang dipakai di kartu Toko biar pemain LANGSUNG tau efek
+// bonus skin ini sebelum beli — sebelumnya bonus ini "tersembunyi" total,
+// jalan di balik layar tapi gak pernah dijelasin ke pemain sama sekali.
+function skinAffinityLabel(affinity) {
+  const map = {
+    speed: '⚡ Buff Kecepatan +50% lama',
+    jump: '🦘 Buff Lompat Tinggi +50% lama',
+    coin2x: '🪙 Buff 2x Koin jadi 3x',
+    life: '❤️ Buff Nyawa: bonus koin lebih besar',
+    magnet: '🧲 Buff Magnet +50% lama',
+    slowmo: '🐌 Buff Perlambat +50% lama',
+    shield: '🛡 Buff Perisai +50% lama',
+    all: '★ SEMUA buff +50% lebih kuat'
+  };
+  return map[affinity] || '';
+}
+// Versi singkat khusus buat popup pas mulai main (biar gak kepanjangan di layar)
+function skinAffinityShortLabel(affinity) {
+  if (affinity === 'all') return '★ SEMUA BUFF +50%';
+  if (affinity === 'coin2x') return '🪙 2X KOIN → 3X';
+  if (affinity === 'life') return '❤ BONUS KOIN NYAWA';
+  const b = BUFF_TYPES[affinity];
+  return b ? `${b.icon} ${b.label} +50%` : '';
+}
 
 /* ===================== FITUR BARU: EFEK JEJAK KAKI (TRAIL) =====================
    Independen dari skin — pemain bisa gonta-ganti warna/bentuk partikel yang
@@ -800,12 +824,17 @@ function currentJumpForce() {
 }
 function updateBuffRow() {
   let html = '';
+  const boosted = getSkin(data.selectedSkin).affinity;
   for (const key in activeBuffs) {
     if (activeBuffs[key] > 0) {
       const info = BUFF_TYPES[key];
       const full = key === 'coin2x' ? 420 : info.duration;
       const pct = Math.max(0, Math.min(100, (activeBuffs[key] / full) * 100));
-      html += `<div class="buff-chip">${info.icon}<div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${info.color}"></div></div></div>`;
+      // Chip dikasih tanda bintang ✦ kalau buff ini lagi dapat bonus dari skin
+      // yang dipakai — biar pemain kelihatan terus selama buff aktif, bukan
+      // cuma lewat popup sekilas pas awal ambil buff.
+      const isBoosted = boosted === key || boosted === 'all';
+      html += `<div class="buff-chip${isBoosted ? ' boosted' : ''}">${info.icon}${isBoosted ? '<span class="boost-star">✦</span>' : ''}<div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${info.color}"></div></div></div>`;
     }
   }
   buffRow.innerHTML = html;
@@ -3696,7 +3725,8 @@ function renderShop() {
     const swatchCanvas = document.createElement('canvas');
     swatchCanvas.width = 112; swatchCanvas.height = 88;
     swatchCanvas.className = 'skin-swatch';
-    card.innerHTML = `<div class="skin-name">${s.name}</div>${btnHtml}`;
+    const affinityTag = s.affinity ? `<div class="skin-affinity-tag">${skinAffinityLabel(s.affinity)}</div>` : '';
+    card.innerHTML = `<div class="skin-name">${s.name}</div>${affinityTag}${btnHtml}`;
     card.prepend(swatchCanvas);
     grid.appendChild(card);
     const sctx = swatchCanvas.getContext('2d');
@@ -3925,6 +3955,15 @@ function startGame() {
   setBiome('padang');
   updateHud();
   showScreen('playing');
+  // Ingetin pemain bonus skin yang lagi dipakai (biar kerasa "ngefek",
+  // bukan cuma tersembunyi di balik layar) — cuma muncul kalau skin
+  // yang dipakai memang punya bonus (skin gratis default tidak punya).
+  const equippedAffinity = getSkin(data.selectedSkin).affinity;
+  if (equippedAffinity) {
+    setTimeout(() => {
+      spawnPopup(dino.x + dino.w / 2, dino.y - 26, skinAffinityShortLabel(equippedAffinity), '#ffd63c');
+    }, 200);
+  }
 }
 
 function loseLife() {
@@ -4144,15 +4183,16 @@ document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '3.0';
+const APP_VERSION = '3.1';
 const NEWS_LIST = [
   {
-    version: '3.0',
+    version: '3.1',
     date: '26 Agu 2026',
-    title: 'Update 3.0 — Perbaikan Kualitas Grafis',
+    title: 'Update 3.1 — Grafis & Bonus Skin',
     items: [
-      '🐞 Bug macet total saat pakai Kualitas Grafis Tinggi/4K — diperbaiki.',
-      '🖼️ Posisi HUD disempurnakan: Cuaca sebaris dengan Koin, Buff di bawah Cuaca.'
+      '🐞 Bug macet total di Kualitas Grafis Tinggi/4K — diperbaiki.',
+      '🖼️ Posisi HUD disempurnakan: Cuaca sebaris Koin, Buff di bawah Cuaca.',
+      '🦖 Bonus buff tiap skin sekarang jelas terlihat — ditandai di Toko & HUD.'
     ]
   },
   {

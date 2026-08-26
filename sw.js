@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dino-runner-v18-fix-gfx-crash';
+const CACHE_NAME = 'dino-runner-v19-skin-buff-visible';
 const ASSETS = [
   './',
   './index.html',

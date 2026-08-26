@@ -4144,8 +4144,17 @@ document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '2.9';
+const APP_VERSION = '3.0';
 const NEWS_LIST = [
+  {
+    version: '3.0',
+    date: '26 Agu 2026',
+    title: 'Update 3.0 — Perbaikan Kualitas Grafis',
+    items: [
+      '🐞 Bug macet total saat pakai Kualitas Grafis Tinggi/4K — diperbaiki.',
+      '🖼️ Posisi HUD disempurnakan: Cuaca sebaris dengan Koin, Buff di bawah Cuaca.'
+    ]
+  },
   {
     version: '2.9',
     date: '25 Agu 2026',
@@ -4665,8 +4674,17 @@ function drawPopups() {
    begitu hujan turun semua map keliatan sama semua (kaya map padang rumput
    default). Sekarang cuaca cuma "menoning" warna biome asli (blend ringan),
    jadi ciri khas tiap biome tetap kelihatan walau lagi hujan/berangin/berkabut. */
-function hexToRgb(hex) {
-  const h = hex.replace('#', '');
+function hexToRgb(color) {
+  // BUGFIX: fungsi ini dulu cuma bisa baca format '#rrggbb'. Padahal warna
+  // biome yang sudah "dicampur" cuaca (lewat blendHex juga) keluarnya dalam
+  // format 'rgb(r,g,b)', bukan hex — jadi kalau dipakai lagi ke blendHex
+  // (misalnya di kualitas grafis Tinggi/4K), parsing-nya gagal total (NaN)
+  // dan bikin game CRASH/macet. Sekarang fungsi ini bisa baca DUA format.
+  if (color.startsWith('rgb')) {
+    const m = color.match(/[\d.]+/g);
+    return [parseInt(m[0], 10), parseInt(m[1], 10), parseInt(m[2], 10)];
+  }
+  const h = color.replace('#', '');
   return [parseInt(h.substring(0, 2), 16), parseInt(h.substring(2, 4), 16), parseInt(h.substring(4, 6), 16)];
 }
 function blendHex(hex, tintHex, amount) {

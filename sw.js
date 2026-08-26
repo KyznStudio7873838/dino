@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dino-runner-v17-gfx-hud-news';
+const CACHE_NAME = 'dino-runner-v18-fix-gfx-crash';
 const ASSETS = [
   './',
   './index.html',

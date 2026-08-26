@@ -251,17 +251,23 @@ const JUMP_FORCE = -12.5;
    web modern. Jadi makin tinggi setting-nya, makin tajam garis & bentuk
    yang dirender, tanpa mengubah ukuran/posisi objek game sama sekali. */
 let VW = window.innerWidth, VH = window.innerHeight;
-const GFX_LEVELS = { rendah: 1, normal: 1.5, tinggi: 2, '4k': 3 };
+const GFX_LEVELS = { rendah: 0.5, normal: 1, tinggi: 2.2, '4k': 3.2 };
 let gfxQuality = localStorage.getItem('dino_gfxQuality') || 'normal';
 if (!GFX_LEVELS[gfxQuality]) gfxQuality = 'normal';
 function effectiveDPR() {
-  const cap = GFX_LEVELS[gfxQuality] || 1.5;
-  return Math.min(window.devicePixelRatio || 1, cap);
+  // Sengaja TIDAK dibatasi oleh devicePixelRatio asli HP, supaya perbedaan
+  // antar tingkat kualitas selalu kelihatan jelas di HP apapun (termasuk HP
+  // dengan layar biasa yang devicePixelRatio-nya cuma 1).
+  return GFX_LEVELS[gfxQuality] || 1;
 }
-// Dipakai buat atur jumlah partikel (hujan/angin/kabut/jejak kaki) supaya
-// mode "Rendah" tetap ringan di HP lawas, dan "4K" lebih rimbun/detail.
+// Dipakai buat atur jumlah partikel (hujan/angin/kabut/jejak kaki/awan) dan
+// intensitas glow (cahaya matahari dsb) supaya perbedaan tiap tingkat kualitas
+// benar-benar kelihatan, bukan cuma beda dikit.
 function gfxParticleMul() {
-  return gfxQuality === 'rendah' ? 0.5 : gfxQuality === 'tinggi' ? 1.3 : gfxQuality === '4k' ? 1.6 : 1;
+  return gfxQuality === 'rendah' ? 0.3 : gfxQuality === 'tinggi' ? 1.7 : gfxQuality === '4k' ? 2.5 : 1;
+}
+function gfxGlowMul() {
+  return gfxQuality === 'rendah' ? 0 : gfxQuality === 'tinggi' ? 1.5 : gfxQuality === '4k' ? 2.2 : 1;
 }
 function setGfxQuality(q) {
   if (!GFX_LEVELS[q]) return;
@@ -4143,35 +4149,14 @@ const NEWS_LIST = [
   {
     version: '2.9',
     date: '25 Agu 2026',
-    title: 'Update 2.9 — Tata Letak HUD Baru',
+    title: 'Update Besar — Perbaikan & Fitur Baru',
     items: [
-      '🖼️ Posisi HUD saat main dirombak: Jeda+Skor di kiri atas, Nyawa di tengah atas, Koin/Berlian & Cuaca/Biome di kanan atas.',
-      '✨ Tampilan HUD lebih rapi dan tidak bertumpuk.'
-    ]
-  },
-  {
-    version: '2.8',
-    date: '25 Agu 2026',
-    title: 'Update 2.8 — Perbaikan Kritis & Toko Baru',
-    items: [
-      '🐞 Perbaikan bug KRITIS: Mode Biasa sempat macet total tidak bisa dimainkan — sudah diperbaiki.',
-      '⏸️ Fitur baru: tombol JEDA saat main — bisa lanjutkan, ulangi, atau kembali ke menu kapan saja.',
-      '🛍️ Toko diperbarui total: tab SKIN & JEJAK KAKI terpisah, tampilan kartu lebih modern.',
-      '🔄 Perbaikan sistem update otomatis supaya versi terbaru selalu langsung ke-load.'
-    ]
-  },
-  {
-    version: '2.7',
-    date: '25 Agu 2026',
-    title: 'Update 2.7 — Perbaikan & Fitur Baru',
-    items: [
-      '🔊 Perbaikan bug: suara/musik sekarang benar-benar berhenti saat game diminimize/ditutup.',
-      '🖼️ Perbaikan bug: layar Mode tidak lagi menampilkan gambar dino nyangkut dari sebelum mati.',
-      '🌦️ Perbaikan bug: tampilan biome (gurun/salju/hutan/dll) sekarang tetap terlihat khas walau cuaca berubah.',
-      '⚙️ Fitur baru: Kualitas Grafis (Rendah/Normal/Tinggi/4K) di menu Pengaturan.',
-      '👣 Fitur baru: 8 varian Efek Jejak Kaki (Api, Es, Bintang, Petir, dll) — bisa dibeli & dipilih di Toko.',
-      '🪨 Rintangan baru: tumpukan batu, kayu log, gundukan salju, sarang lebah.',
-      '🎨 Tampilan game diperbarui jadi lebih modern (font & judul baru).'
+      '🐞 Bug macet total di Mode Biasa — diperbaiki.',
+      '🔊 Suara tidak lagi jalan terus saat app ditutup.',
+      '⏸️ Fitur baru: tombol Jeda saat main.',
+      '⚙️ Fitur baru: Kualitas Grafis (Rendah–4K).',
+      '👣 8 varian efek Jejak Kaki + rintangan baru.',
+      '🛍️ Toko & tampilan HUD dirombak lebih modern.'
     ]
   },
   {
@@ -4300,6 +4285,19 @@ function drawDino() {
     dinoTrail.forEach((t, i) => {
       drawDinoShape(ctx, t.x - (dinoTrail.length - i) * 6, t.y, dino.w, dino.h, s, t.jumping, t.frame, 0.12 + i * 0.05);
     });
+  }
+  // Bayangan lembut di bawah dino — cuma tampil di kualitas Tinggi/4K,
+  // jadi perbedaan Rendah vs Tinggi kelihatan jelas dari sini.
+  if (gfxQuality === 'tinggi' || gfxQuality === '4k') {
+    const jumpH = Math.max(0, GROUND_Y - (dino.y + dino.h));
+    const shrink = Math.max(0.35, 1 - jumpH / 140);
+    ctx.save();
+    ctx.globalAlpha = 0.28 * shrink;
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.ellipse(dino.x + dino.w / 2, GROUND_Y + 2, (dino.w * 0.5) * shrink, 5 * shrink, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
   let alpha = 1;
   if (invincible > 0 && Math.floor(frame / 5) % 2 === 0) alpha = 0.35;
@@ -4711,33 +4709,55 @@ function hillColor(layer) {
 
 function drawBackground() {
   const [top, bottom] = skyColors();
-  const g = ctx.createLinearGradient(0, 0, 0, VH);
-  g.addColorStop(0, top);
-  g.addColorStop(1, bottom);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, VW, VH);
+  if (gfxQuality === 'rendah') {
+    // Mode Rendah: langit warna FLAT (tanpa gradasi) — sengaja dibuat polos & tegas biar beda jauh sama mode lain.
+    ctx.fillStyle = bottom;
+    ctx.fillRect(0, 0, VW, VH);
+  } else {
+    const g = ctx.createLinearGradient(0, 0, 0, VH);
+    g.addColorStop(0, top);
+    if (gfxQuality === '4k' || gfxQuality === 'tinggi') g.addColorStop(0.55, blendHex(top, bottom, 0.5));
+    g.addColorStop(1, bottom);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, VW, VH);
+  }
 
   // sun / moon
   if (weather !== 'rain' && weather !== 'kabut') {
     const sx = VW * 0.82, sy = VH * 0.16, sr = 34;
-    const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr * 2.2);
-    if (weather === 'wind') {
-      sg.addColorStop(0, 'rgba(255,200,120,0.9)');
-      sg.addColorStop(1, 'rgba(255,200,120,0)');
-    } else if (biome === 'malam') {
-      sg.addColorStop(0, 'rgba(210,220,255,0.85)');
-      sg.addColorStop(1, 'rgba(210,220,255,0)');
+    if (gfxQuality === 'rendah') {
+      // Mode Rendah: matahari cuma lingkaran polos, tanpa glow sama sekali.
+      ctx.fillStyle = weather === 'wind' ? '#ffcf6b' : (biome === 'malam' ? '#eef1ff' : '#ffe36b');
+      ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
     } else {
-      sg.addColorStop(0, 'rgba(255,235,140,0.95)');
-      sg.addColorStop(1, 'rgba(255,235,140,0)');
-    }
-    ctx.fillStyle = sg;
-    ctx.beginPath(); ctx.arc(sx, sy, sr * 2.2, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = weather === 'wind' ? '#ffcf6b' : (biome === 'malam' ? '#eef1ff' : '#ffe36b');
-    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
-    if (biome === 'malam' && weather === 'clear') {
-      ctx.fillStyle = BIOMES.malam.sky[1];
-      ctx.beginPath(); ctx.arc(sx - 10, sy - 8, sr * 0.8, 0, Math.PI * 2); ctx.fill();
+      const glowMul = gfxQuality === '4k' ? 3.1 : gfxQuality === 'tinggi' ? 2.6 : 2.2;
+      const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr * glowMul);
+      if (weather === 'wind') {
+        sg.addColorStop(0, 'rgba(255,200,120,0.9)');
+        sg.addColorStop(1, 'rgba(255,200,120,0)');
+      } else if (biome === 'malam') {
+        sg.addColorStop(0, 'rgba(210,220,255,0.85)');
+        sg.addColorStop(1, 'rgba(210,220,255,0)');
+      } else {
+        sg.addColorStop(0, 'rgba(255,235,140,0.95)');
+        sg.addColorStop(1, 'rgba(255,235,140,0)');
+      }
+      ctx.fillStyle = sg;
+      ctx.beginPath(); ctx.arc(sx, sy, sr * glowMul, 0, Math.PI * 2); ctx.fill();
+      // Mode 4K: tambahan lapisan bloom ekstra biar makin "menyala".
+      if (gfxQuality === '4k') {
+        const sg2 = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr * 1.5);
+        sg2.addColorStop(0, 'rgba(255,255,255,0.55)');
+        sg2.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = sg2;
+        ctx.beginPath(); ctx.arc(sx, sy, sr * 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = weather === 'wind' ? '#ffcf6b' : (biome === 'malam' ? '#eef1ff' : '#ffe36b');
+      ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+      if (biome === 'malam' && weather === 'clear') {
+        ctx.fillStyle = BIOMES.malam.sky[1];
+        ctx.beginPath(); ctx.arc(sx - 10, sy - 8, sr * 0.8, 0, Math.PI * 2); ctx.fill();
+      }
     }
   }
 }
@@ -4840,15 +4860,19 @@ function drawGround() {
   ctx.fillStyle = gc.grass;
   ctx.fillRect(0, GROUND_Y - 2, VW, 8);
 
-  // grass tufts + pebbles
-  const count = Math.ceil(VW / 22) + 2;
+  // grass tufts + pebbles — kerapatan ikut kualitas grafis biar bedanya kelihatan jelas:
+  // Rendah = polos tanpa rumput sama sekali, 4K = paling rimbun & detail.
+  if (gfxQuality === 'rendah') return;
+  const spacing = gfxQuality === '4k' ? 12 : gfxQuality === 'tinggi' ? 16 : 22;
+  const count = Math.ceil(VW / spacing) + 2;
   for (let i = 0; i < count; i++) {
-    const x = (i * 22 - groundOffset % 22);
+    const x = (i * spacing - groundOffset % spacing);
     const variant = i % 3;
     if (variant !== 2) {
       ctx.fillStyle = gc.grassDark;
       ctx.fillRect(x, GROUND_Y - 6, 3, 6);
       ctx.fillRect(x + 5, GROUND_Y - 8, 3, 8);
+      if (gfxQuality === '4k') { ctx.fillRect(x - 4, GROUND_Y - 5, 2, 5); }
     } else {
       ctx.fillStyle = gc.dirtDark;
       ctx.beginPath();

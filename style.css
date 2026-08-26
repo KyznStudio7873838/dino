@@ -61,13 +61,10 @@ body[data-gfx="rendah"] .buff-chip {
   #lives { letter-spacing: 2px; color: #e5484d; }
   #weatherPill { font-size: 13px; }
   #buffRow {
-    position: fixed;
-    top: max(10px, env(safe-area-inset-top));
-    left: 0; right: 0;
     display: flex;
-    justify-content: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 6px;
-    z-index: 6;
     pointer-events: none;
   }
   .buff-chip {

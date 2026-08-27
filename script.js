@@ -289,7 +289,7 @@ function setGfxQuality(q) {
       juga tidak pernah tercampur. Tanpa akun online, semua tetap berjalan
       100% lokal seperti biasa.
 ================================================================================ */
-const PROFILE_KEYS = ['highScore', 'coins', 'diamonds', 'unlocked', 'selectedSkin', 'questProgress', 'questCompleted', 'mantraCount', 'chapter2StageDone', 'chapter2IntroSeen', 'achievements', 'bestStreak', 'dailyDate', 'dailyChallengeId', 'dailyDone', 'dailyClaimed', 'unlockedTrails', 'selectedTrail'];
+const PROFILE_KEYS = ['highScore', 'coins', 'diamonds', 'unlocked', 'selectedSkin', 'questProgress', 'questCompleted', 'mantraCount', 'chapter2StageDone', 'chapter2IntroSeen', 'achievements', 'bestStreak', 'dailyDate', 'dailyChallengeId', 'dailyDone', 'dailyClaimed', 'unlockedTrails', 'selectedTrail', 'eventGhost'];
 function profileStorageKey(profileId, key) { return `dino_p_${profileId}_${key}`; }
 function simpleHash(str) {
   let h = 0;
@@ -378,7 +378,7 @@ function exportSave() {
       selectedSkin: data.selectedSkin, questProgress: data.questProgress, questCompleted: data.questCompleted,
       mantraCount: data.mantraCount, chapter2StageDone: data.chapter2StageDone, chapter2IntroSeen: data.chapter2IntroSeen,
       achievements: data.achievements, bestStreak: data.bestStreak,
-      unlockedTrails: data.unlockedTrails, selectedTrail: data.selectedTrail
+      unlockedTrails: data.unlockedTrails, selectedTrail: data.selectedTrail, eventGhost: data.eventGhost
     }
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -411,6 +411,7 @@ function handleImportSaveFile(file) {
     localStorage.setItem(profileStorageKey(id, 'bestStreak'), String(payload.data.bestStreak || 0));
     localStorage.setItem(profileStorageKey(id, 'unlockedTrails'), JSON.stringify(payload.data.unlockedTrails || [0]));
     localStorage.setItem(profileStorageKey(id, 'selectedTrail'), String(payload.data.selectedTrail || 0));
+    localStorage.setItem(profileStorageKey(id, 'eventGhost'), JSON.stringify(payload.data.eventGhost || {}));
     data = loadData();
     refreshLobbyStats();
     renderAccountScreen();
@@ -419,20 +420,33 @@ function handleImportSaveFile(file) {
   reader.onerror = () => alert('Gagal membaca file save.');
   reader.readAsText(file);
 }
+function renderEquippedSkinPanel() {
+  const s = getSkin(data.selectedSkin);
+  document.getElementById('equippedSkinName').textContent = s.name;
+  const buffEl = document.getElementById('equippedSkinBuff');
+  buffEl.textContent = s.affinity ? skinAffinityShortLabel(s.affinity) : '✦ Skin polos, tanpa bonus buff';
+  const cvs = document.getElementById('equippedSkinCanvas');
+  const cctx = cvs.getContext('2d');
+  cctx.clearRect(0, 0, cvs.width, cvs.height);
+  drawDinoShape(cctx, 16, 26, 38, 38, s, false, 0, 1);
+}
 function renderAccountScreen() {
+  renderEquippedSkinPanel();
   const activeId = getActiveProfileId();
   const list = loadProfileList();
   const wrap = document.getElementById('profileList');
   wrap.innerHTML = '';
   list.forEach(p => {
     const isActive = p.id === activeId;
+    const hs = localStorage.getItem(profileStorageKey(p.id, 'highScore')) || '0';
+    const pc = localStorage.getItem(profileStorageKey(p.id, 'coins')) || '0';
     const row = document.createElement('div');
     row.className = 'profile-item' + (isActive ? ' active' : '');
     row.innerHTML = `
       <div class="p-avatar">${isActive ? '👑' : '🦖'}</div>
       <div class="p-info">
         <div class="p-name">${p.name}${p.pinHash ? ' 🔒' : ''}</div>
-        <div class="p-meta">${isActive ? 'Profil aktif' : 'Tap untuk pindah'}</div>
+        <div class="p-meta">🏆 ${hs} &nbsp;·&nbsp; 🪙 ${pc}</div>
       </div>
       <div class="p-actions">
         ${isActive ? '<button class="p-btn current" disabled>AKTIF</button>' : `<button class="p-btn switch" data-id="${p.id}" data-action="switch">PAKAI</button>`}
@@ -628,10 +642,17 @@ function loadData() {
     dailyDone: get('dailyDone', 'false') === 'true',
     dailyClaimed: get('dailyClaimed', 'false') === 'true',
     unlockedTrails: JSON.parse(get('unlockedTrails', '[0]')),
-    selectedTrail: parseInt(get('selectedTrail', '0'), 10)
+    selectedTrail: parseInt(get('selectedTrail', '0'), 10),
+    eventGhost: (() => { try { return JSON.parse(get('eventGhost', '{}')); } catch (e) { return {}; } })()
   };
 }
 let data = loadData();
+// Pastikan struktur progres event Hantu selalu lengkap (jaga-jaga kalau
+// profil ini belum pernah punya field ini sama sekali sebelum event ada).
+if (!data.eventGhost || typeof data.eventGhost !== 'object') data.eventGhost = {};
+data.eventGhost.nightPasses = data.eventGhost.nightPasses || 0;
+data.eventGhost.mission1Done = !!data.eventGhost.mission1Done;
+data.eventGhost.mission2Done = !!data.eventGhost.mission2Done;
 function saveData() {
   const pid = getActiveProfileId();
   const set = (key, val) => localStorage.setItem(profileStorageKey(pid, key), val);
@@ -653,6 +674,7 @@ function saveData() {
   set('dailyClaimed', String(data.dailyClaimed));
   set('unlockedTrails', JSON.stringify(data.unlockedTrails));
   set('selectedTrail', String(data.selectedTrail));
+  set('eventGhost', JSON.stringify(data.eventGhost));
   scheduleServerPush();
 }
 /* Simpan checkpoint story mode: dipanggil tiap kali sebuah bos berhasil dikalahkan,
@@ -664,8 +686,9 @@ function qSaveCheckpoint(mapIndex, completed) {
   if (completed) {
     data.questProgress = null;
     data.questCompleted = true;
-    // Buka semua skin hadiah (misal Naga Emas) begitu story mode tamat
-    SKINS.filter(s => s.rewardOnly).forEach(s => {
+    // Buka semua skin hadiah (misal Naga Emas) begitu story mode tamat —
+    // KECUALI skin hadiah event (eventOnly), itu cuma bisa didapat lewat misi event-nya sendiri.
+    SKINS.filter(s => s.rewardOnly && !s.eventOnly).forEach(s => {
       if (!data.unlocked.includes(s.id)) data.unlocked.push(s.id);
     });
   } else {
@@ -716,6 +739,11 @@ const SKINS = [
     body: '#e89a4f', head: '#c76f2c', belly: '#ffe3b0', eye: '#fff',
     spikeStyle: 'double', pattern: 'stripes', tailStyle: 'normal', horn: true, hornColor: '#c76f2c',
     shimmer: true, shimmerColor: '#ffd9a0', shimmerDark: '#c76f2c', affinity: 'shield' },
+  { id: 10, name: 'Hantu Kelana', cost: 0, rewardOnly: true, eventOnly: true,
+    rewardLabel: 'Hadiah Event Hantu — Misi 2',
+    body: '#e6e0f5', head: '#cfc4ea', belly: '#ffffff', eye: '#3a2a5c',
+    spikeStyle: 'none', pattern: 'plain', tailStyle: 'wisp', horn: false,
+    ghostly: true, affinity: 'ghost' },
 ];
 function getSkin(id) { return SKINS.find(s => s.id === id) || SKINS[0]; }
 // Label singkat yang dipakai di kartu Toko biar pemain LANGSUNG tau efek
@@ -730,6 +758,7 @@ function skinAffinityLabel(affinity) {
     magnet: '🧲 Buff Magnet +50% lama',
     slowmo: '🐌 Buff Perlambat +50% lama',
     shield: '🛡 Buff Perisai +50% lama',
+    ghost: '👻 Buff Hantu +50% lama',
     all: '★ SEMUA buff +50% lebih kuat'
   };
   return map[affinity] || '';
@@ -755,6 +784,9 @@ const TRAIL_EFFECTS = [
   { id: 5, name: 'Petir Elektrik', cost: 50, costType: 'diamond', type: 'electric', color: '#c9a8ff', color2: '#fff' },
   { id: 6, name: 'Gelembung Air', cost: 70, type: 'bubble', color: '#8fd3f0', color2: '#eafcff' },
   { id: 7, name: 'Pelangi Ajaib', cost: 80, costType: 'diamond', type: 'rainbow', color: '#ff6b6b' },
+  { id: 8, name: 'Jejak Hantu', cost: 0, rewardOnly: true, eventOnly: true,
+    rewardLabel: 'Hadiah Event Hantu — Misi 1',
+    type: 'ghost', color: '#b8a6ff', color2: '#f0eaff' },
 ];
 function getTrail(id) { return TRAIL_EFFECTS.find(t => t.id === id) || TRAIL_EFFECTS[0]; }
 const RAINBOW_COLORS = ['#ff6b6b', '#ffb238', '#ffe36b', '#7ed957', '#4fd6c8', '#5ec8ff', '#b06fff'];
@@ -767,9 +799,10 @@ const BUFF_TYPES = {
   shield: { icon: '🛡',  label: 'PERISAI',    color: '#5ec8ff', duration: 400 },
   magnet: { icon: '🧲', label: 'MAGNET',     color: '#b06fff', duration: 360 },
   slowmo: { icon: '🐌', label: 'PERLAMBAT WAKTU', color: '#4fe0a0', duration: 260 },
-  life:   { icon: '❤',  label: 'NYAWA',      color: '#ff5d7a', duration: 0 }
+  life:   { icon: '❤',  label: 'NYAWA',      color: '#ff5d7a', duration: 0 },
+  ghost:  { icon: '👻', label: 'HANTU',      color: '#b8a6ff', duration: 240 }
 };
-let activeBuffs = { speed: 0, jump: 0, coin2x: 0, shield: 0, magnet: 0, slowmo: 0 };
+let activeBuffs = { speed: 0, jump: 0, coin2x: 0, shield: 0, magnet: 0, slowmo: 0, ghost: 0 };
 let dinoTrail = [];
 let dustParticles = [];
 let popups = [];
@@ -2889,6 +2922,8 @@ function questDraw() {
 let state = 'menu'; // menu | shop | playing | gameover
 let frame = 0;
 let score = 0;
+let runStartMs = 0; // waktu mulai lari mode Biasa (buat misi event "bertahan 6 menit")
+let ghostMission2AlertShown = false;
 let runCoins = 0;
 let runDiamonds = 0;
 let coinStreak = 0;
@@ -2911,6 +2946,67 @@ const BIOMES = {
   hutan:  { sky: ['#6fa88a', '#cfe8d6'], ground: { grass: '#356b3d', grassDark: '#254c2b', dirt: '#4a3d2a', dirtDark: '#372c1e' }, hill: { back: '#3f7a4a', front: '#2f5f38' }, label: '🌲 HUTAN LEBAT' },
   pantai: { sky: ['#7ec8e3', '#eaf9ff'], ground: { grass: '#e8d9a0', grassDark: '#d1bd7c', dirt: '#f0e2b8', dirtDark: '#dcc98f' }, hill: { back: '#8fd0d8', front: '#6fbcc7' }, label: '🏖 PANTAI' }
 };
+
+/* ===================== EVENT SPESIAL: HANTU ===================== =
+   Event terbatas waktu. Selama aktif: biome Padang Rumput "disamarkan"
+   jadi Padang Hantu (warna ungu/kelabu berkabut), muncul buff Hantu baru,
+   dan ada 2 misi dengan hadiah skin & jejak kaki bertema hantu. Semua
+   dicek murni dari tanggal perangkat (Date.now()) — begitu lewat tanggal
+   berakhir, tema & buff otomatis hilang sendiri tanpa perlu update lagi. */
+const GHOST_EVENT = {
+  name: 'Event Hantu',
+  endTime: new Date('2026-09-15T00:00:00').getTime()
+};
+function ghostEventActive() { return Date.now() < GHOST_EVENT.endTime; }
+function ghostEventTimeLeft() { return Math.max(0, GHOST_EVENT.endTime - Date.now()); }
+const GHOST_MISSION1_TARGET = 3;
+const GHOST_MISSION2_TARGET_MS = 6 * 60 * 1000; // 6 menit
+// Misi 1: "lewati biome malam hari sebanyak 3 kali" — dihitung SETIAP KALI
+// biome berubah masuk ke 'malam' (akumulasi lintas sesi main, tersimpan permanen).
+function ghostToast(text) {
+  const el = document.getElementById('ghostToast');
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(el._hideTimer);
+  el._hideTimer = setTimeout(() => el.classList.remove('show'), 3200);
+}
+function onEnterNightBiome() {
+  if (!ghostEventActive() || data.eventGhost.mission1Done) return;
+  data.eventGhost.nightPasses = (data.eventGhost.nightPasses || 0) + 1;
+  if (data.eventGhost.nightPasses >= GHOST_MISSION1_TARGET) {
+    data.eventGhost.mission1Done = true;
+    if (!data.unlockedTrails.includes(8)) data.unlockedTrails.push(8);
+    ghostToast('👻 MISI 1 SELESAI!\nJejak Kaki Hantu terbuka di Toko!');
+    AudioMgr.sfx('unlock');
+  }
+  saveData();
+}
+// Misi 2: "bertahan 6 menit di game" — dicek tiap frame selama mode Biasa berjalan.
+function checkGhostMission2() {
+  if (data.eventGhost.mission2Done || ghostMission2AlertShown) return;
+  if (!ghostEventActive()) return;
+  if (mode !== 'normal' || state !== 'playing') return;
+  if (Date.now() - runStartMs >= GHOST_MISSION2_TARGET_MS) {
+    data.eventGhost.mission2Done = true;
+    ghostMission2AlertShown = true;
+    if (!data.unlocked.includes(10)) data.unlocked.push(10);
+    spawnPopup(dino.x + dino.w / 2, dino.y - 30, '👻 SKIN TERBUKA!', '#b8a6ff');
+    ghostToast('👻 MISI 2 SELESAI!\nSkin Hantu Kelana terbuka di Toko!');
+    AudioMgr.sfx('unlock');
+    saveData();
+  }
+}
+const GHOST_PADANG = {
+  sky: ['#4a3d70', '#8b7bc0'],
+  ground: { grass: '#4a3d66', grassDark: '#332950', dirt: '#5c4a75', dirtDark: '#40324f' },
+  hill: { back: '#5d4c85', front: '#453868' },
+  label: '👻 PADANG HANTU'
+};
+// Dipakai skyColors/groundColors/hillColor/setBiome supaya "padang" tampil
+// bertema hantu selama event aktif, dan otomatis balik normal begitu event usai.
+function activeBiomeDef(b) {
+  return (b === 'padang' && ghostEventActive()) ? GHOST_PADANG : BIOMES[b];
+}
 let biome = 'padang';
 let biomeScoreMark = 0;
 const BIOME_INTERVAL = 500;
@@ -2955,7 +3051,9 @@ function roundRectPath(c, x, y, w, h, r) {
 
 function drawDinoShape(c, x, y, w, h, skin, jumping, walkFrame, alpha) {
   c.save();
-  if (alpha !== undefined) c.globalAlpha = alpha;
+  let finalAlpha = alpha !== undefined ? alpha : 1;
+  if (skin.ghostly) finalAlpha *= 0.8; // skin bertema hantu: badan sedikit tembus pandang secara permanen
+  c.globalAlpha = finalAlpha;
 
   // legs
   c.fillStyle = skin.head;
@@ -3063,17 +3161,30 @@ function drawDinoShape(c, x, y, w, h, skin, jumping, walkFrame, alpha) {
   c.fillStyle = '#222';
   c.beginPath(); c.arc(x + w - 4.5, y + 1, 2, 0, Math.PI * 2); c.fill();
 
-  // buff-affinity badge on chest (small icon showing this skin's signature buff)
+  // Lencana buff di badan dino — INI penanda utama biar keliatan langsung
+  // buff apa yang dimiliki skin ini, bukan sekadar detail kecil yang gampang
+  // kelewat. Lingkaran warna ikut warna buff-nya + ikon lebih besar & tebal.
   if (skin.affinity) {
-    const info = skin.affinity === 'all' ? { icon: '★', color: '#fff2ff' } : BUFF_TYPES[skin.affinity];
+    const info = skin.affinity === 'all' ? { icon: '★', color: '#8a4fd9' } : BUFF_TYPES[skin.affinity];
+    const bx = x + w * 0.42, by = y + h * 0.42, br = w * 0.24;
     c.save();
-    c.translate(x + 9, y + h - 24);
-    c.fillStyle = 'rgba(255,255,255,0.85)';
-    c.beginPath(); c.arc(0, 0, 6, 0, Math.PI * 2); c.fill();
+    // ring luar warna buff (glow lembut)
     c.fillStyle = info.color;
-    c.font = 'bold 7px sans-serif';
+    c.globalAlpha = 0.28;
+    c.beginPath(); c.arc(bx, by, br + 3, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1;
+    // piringan putih
+    c.fillStyle = 'rgba(255,255,255,0.92)';
+    c.beginPath(); c.arc(bx, by, br, 0, Math.PI * 2); c.fill();
+    // cincin warna buff
+    c.strokeStyle = info.color;
+    c.lineWidth = 2;
+    c.beginPath(); c.arc(bx, by, br, 0, Math.PI * 2); c.stroke();
+    // ikon buff
+    c.fillStyle = info.color;
+    c.font = `bold ${Math.round(br * 1.25)}px sans-serif`;
     c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(info.icon, 0, 0.5);
+    c.fillText(info.icon, bx, by + br * 0.06);
     c.restore();
   }
 
@@ -3273,6 +3384,17 @@ function drawTailExtra(c, x, y, h, skin) {
     c.lineTo(x - 22, y + h - 12);
     c.lineTo(x - 13, y + h - 6);
     c.closePath(); c.fill();
+  } else if (skin.tailStyle === 'wisp') {
+    // Ekor kabut hantu: bukan ekor padat, tapi 3 gumpalan asap yang menipis ke ujung.
+    c.save();
+    c.globalAlpha = 0.85;
+    c.fillStyle = skin.body;
+    c.beginPath(); c.arc(x - 6, y + h - 14, 6.5, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 0.55;
+    c.beginPath(); c.arc(x - 15, y + h - 12, 5, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 0.3;
+    c.beginPath(); c.arc(x - 22, y + h - 9, 3.5, 0, Math.PI * 2); c.fill();
+    c.restore();
   }
 }
 
@@ -3336,26 +3458,36 @@ function renderLobbyDino() {
   if (!w || !h) return;
   const groundY = lpGroundY();
   const s = getSkin(data.selectedSkin);
+  const ghostTheme = ghostEventActive();
   lpUpdate();
   lobbyCtx.clearRect(0, 0, w, h);
-  // langit senja lembut
+  // langit senja lembut (atau tema hantu ungu selama Event Hantu)
   const g = lobbyCtx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#a8ddf0'); g.addColorStop(0.55, '#cdeeb0'); g.addColorStop(1, '#eaffe0');
+  if (ghostTheme) {
+    g.addColorStop(0, '#332358'); g.addColorStop(0.55, '#6a5296'); g.addColorStop(1, '#a08cc7');
+  } else {
+    g.addColorStop(0, '#a8ddf0'); g.addColorStop(0.55, '#cdeeb0'); g.addColorStop(1, '#eaffe0');
+  }
   lobbyCtx.fillStyle = g;
   lobbyCtx.fillRect(0, 0, w, h);
-  // matahari
+  // matahari (atau bulan pucat pas tema hantu)
   lobbyCtx.save();
   const sx = w * 0.82, sy = h * 0.16, sr = Math.max(20, w * 0.05);
   const sg = lobbyCtx.createRadialGradient(sx, sy, 0, sx, sy, sr * 2.4);
-  sg.addColorStop(0, 'rgba(255,244,190,0.95)');
-  sg.addColorStop(1, 'rgba(255,244,190,0)');
+  if (ghostTheme) {
+    sg.addColorStop(0, 'rgba(220,215,255,0.9)');
+    sg.addColorStop(1, 'rgba(220,215,255,0)');
+  } else {
+    sg.addColorStop(0, 'rgba(255,244,190,0.95)');
+    sg.addColorStop(1, 'rgba(255,244,190,0)');
+  }
   lobbyCtx.fillStyle = sg;
   lobbyCtx.beginPath(); lobbyCtx.arc(sx, sy, sr * 2.4, 0, Math.PI * 2); lobbyCtx.fill();
-  lobbyCtx.fillStyle = '#fff3c0';
+  lobbyCtx.fillStyle = ghostTheme ? '#e8e2ff' : '#fff3c0';
   lobbyCtx.beginPath(); lobbyCtx.arc(sx, sy, sr, 0, Math.PI * 2); lobbyCtx.fill();
   lobbyCtx.restore();
   // bukit jauh (parallax statis, dekorasi)
-  lobbyCtx.fillStyle = 'rgba(80,150,80,0.28)';
+  lobbyCtx.fillStyle = ghostTheme ? 'rgba(90,70,140,0.45)' : 'rgba(80,150,80,0.28)';
   lobbyCtx.beginPath();
   lobbyCtx.moveTo(0, groundY);
   lobbyCtx.quadraticCurveTo(w * 0.2, groundY - h * 0.14, w * 0.42, groundY);
@@ -3363,8 +3495,8 @@ function renderLobbyDino() {
   lobbyCtx.lineTo(w, groundY);
   lobbyCtx.lineTo(w, h); lobbyCtx.lineTo(0, h);
   lobbyCtx.closePath(); lobbyCtx.fill();
-  // awan
-  lobbyCtx.fillStyle = 'rgba(255,255,255,0.75)';
+  // awan (atau kabut hantu)
+  lobbyCtx.fillStyle = ghostTheme ? 'rgba(220,210,255,0.5)' : 'rgba(255,255,255,0.75)';
   [[0.13, 0.18, 1], [0.5, 0.12, 0.8], [0.32, 0.28, 0.65]].forEach(([fx, fy, scale]) => {
     const cx = w * fx, cy = h * fy, r = Math.max(10, w * 0.032) * scale;
     lobbyCtx.beginPath(); lobbyCtx.arc(cx, cy, r, 0, Math.PI * 2); lobbyCtx.fill();
@@ -3373,7 +3505,8 @@ function renderLobbyDino() {
   });
   // tanah
   const gg = lobbyCtx.createLinearGradient(0, groundY, 0, h);
-  gg.addColorStop(0, '#4f9c36'); gg.addColorStop(1, '#33691f');
+  if (ghostTheme) { gg.addColorStop(0, '#4a3a70'); gg.addColorStop(1, '#251c42'); }
+  else { gg.addColorStop(0, '#4f9c36'); gg.addColorStop(1, '#33691f'); }
   lobbyCtx.fillStyle = gg;
   lobbyCtx.fillRect(0, groundY, w, h - groundY);
   lobbyCtx.strokeStyle = 'rgba(0,0,0,0.2)';
@@ -3387,14 +3520,23 @@ function renderLobbyDino() {
     lobbyCtx.moveTo(gx, groundY + 5); lobbyCtx.lineTo(gx + 4, groundY - 2); lobbyCtx.lineTo(gx + 8, groundY + 5);
     lobbyCtx.stroke();
   }
-  // rintangan (batu)
+  // rintangan (batu, atau nisan pas tema hantu)
   lpObstacles.forEach(o => {
-    lobbyCtx.fillStyle = '#6b5a45';
-    roundRectPath(lobbyCtx, o.x, groundY - o.h, o.w, o.h, 3);
-    lobbyCtx.fill();
-    lobbyCtx.fillStyle = 'rgba(255,255,255,0.25)';
-    roundRectPath(lobbyCtx, o.x + 2, groundY - o.h + 2, o.w - 6, 3, 2);
-    lobbyCtx.fill();
+    if (ghostTheme) {
+      lobbyCtx.fillStyle = '#8a7fae';
+      roundRectPath(lobbyCtx, o.x, groundY - o.h, o.w, o.h, o.w * 0.4);
+      lobbyCtx.fill();
+      lobbyCtx.strokeStyle = 'rgba(255,255,255,0.3)'; lobbyCtx.lineWidth = 1.5;
+      lobbyCtx.beginPath(); lobbyCtx.moveTo(o.x + o.w * 0.3, groundY - o.h + 4); lobbyCtx.lineTo(o.x + o.w * 0.3, groundY - 3); lobbyCtx.stroke();
+      lobbyCtx.beginPath(); lobbyCtx.moveTo(o.x + o.w * 0.15, groundY - o.h * 0.55); lobbyCtx.lineTo(o.x + o.w * 0.55, groundY - o.h * 0.55); lobbyCtx.stroke();
+    } else {
+      lobbyCtx.fillStyle = '#6b5a45';
+      roundRectPath(lobbyCtx, o.x, groundY - o.h, o.w, o.h, 3);
+      lobbyCtx.fill();
+      lobbyCtx.fillStyle = 'rgba(255,255,255,0.25)';
+      roundRectPath(lobbyCtx, o.x + 2, groundY - o.h + 2, o.w - 6, 3, 2);
+      lobbyCtx.fill();
+    }
   });
   // dino sedang lari & melompati rintangan
   drawDinoShape(lobbyCtx, lpDino.x, lpDino.y, lpDino.w, lpDino.h, s, lpDino.jumping, lpFrame, 1);
@@ -3441,8 +3583,20 @@ let rainDrops = [];
 function initRain() {
   rainDrops = [];
   const n = Math.round(60 * gfxParticleMul());
+  const blizzard = isBlizzard();
   for (let i = 0; i < n; i++) {
-    rainDrops.push({ x: Math.random() * VW, y: Math.random() * VH, len: 10 + Math.random() * 10, speed: 8 + Math.random() * 6 });
+    if (blizzard) {
+      // Kepingan salju: jatuh lebih pelan, ukurannya bervariasi, ada goyangan.
+      rainDrops.push({
+        x: Math.random() * VW, y: Math.random() * VH,
+        len: 2 + Math.random() * 2.5,
+        speed: 1.5 + Math.random() * 2,
+        swayPhase: Math.random() * Math.PI * 2,
+        swaySpeed: 0.02 + Math.random() * 0.03
+      });
+    } else {
+      rainDrops.push({ x: Math.random() * VW, y: Math.random() * VH, len: 10 + Math.random() * 10, speed: 8 + Math.random() * 6 });
+    }
   }
 }
 
@@ -3537,6 +3691,8 @@ function spawnCoin() {
 
 function spawnBuff() {
   const pool = ['speed', 'speed', 'jump', 'jump', 'coin2x', 'coin2x', 'shield', 'shield', 'magnet', 'magnet', 'slowmo', 'slowmo', 'life'];
+  // Buff Hantu cuma nongol selama Event Hantu aktif — hilang otomatis begitu event lewat.
+  if (ghostEventActive()) pool.push('ghost', 'ghost');
   const type = pool[Math.floor(Math.random() * pool.length)];
   const highChance = Math.random() < 0.5;
   const y = highChance ? GROUND_Y - 100 : GROUND_Y - 38;
@@ -3558,7 +3714,17 @@ function setWeather(w) {
   if (w === 'rain') initRain();
   if (w === 'wind') initWind();
   if (w === 'kabut') initFog();
-  weatherPill.textContent = w === 'rain' ? '🌧 HUJAN' : (w === 'wind' ? '💨 ANGIN' : (w === 'kabut' ? '🌫 BERKABUT' : '☀ CERAH'));
+  updateWeatherLabel();
+}
+// BUGFIX (biome vs cuaca): sebelumnya cuaca "hujan" nampilin tetesan air BIRU
+// jatuh lurus walau lagi di biome salju — keliatan aneh (masa di salju ujan
+// air?). Sekarang kalau lagi hujan DAN biome-nya salju, otomatis jadi BADAI
+// SALJU: partikelnya jadi kepingan salju putih yang jatuh pelan & melayang
+// ke samping, bukan tetesan air. Label cuaca di HUD juga ikut berubah.
+function isBlizzard() { return weather === 'rain' && biome === 'salju'; }
+function updateWeatherLabel() {
+  weatherPill.textContent = weather === 'rain' ? (isBlizzard() ? '❄ BADAI SALJU' : '🌧 HUJAN')
+    : (weather === 'wind' ? '💨 ANGIN' : (weather === 'kabut' ? '🌫 BERKABUT' : '☀ CERAH'));
 }
 function maybeChangeWeather() {
   if (score - weatherScoreMark >= WEATHER_INTERVAL) {
@@ -3571,9 +3737,16 @@ function maybeChangeWeather() {
 /* ===================== BIOME LOGIC ===================== */
 let biomeSeen = new Set();
 function setBiome(b) {
+  if (b === 'malam' && biome !== 'malam' && mode === 'normal') {
+    onEnterNightBiome();
+  }
   biome = b;
   biomeSeen.add(b);
-  biomePill.textContent = BIOMES[b].label;
+  biomePill.textContent = activeBiomeDef(b).label;
+  // Kalau lagi hujan dan biome berubah masuk/keluar dari salju, langsung
+  // sesuaikan partikel (hujan ⇄ badai salju) dan label cuaca-nya juga.
+  if (weather === 'rain') initRain();
+  updateWeatherLabel();
 }
 function maybeChangeBiome() {
   if (score - biomeScoreMark >= BIOME_INTERVAL) {
@@ -3670,6 +3843,7 @@ function refreshLobbyStats() {
   document.getElementById('statDiamonds').textContent = data.diamonds;
   renderDailyChallenge();
   renderLobbyDino();
+  updateGhostEventButtonVisibility();
   const profile = getActiveProfile();
   document.getElementById('profilePillName').textContent = profile ? profile.name : 'Pemain';
   const continueBtn = document.getElementById('questContinueBtn');
@@ -3787,6 +3961,8 @@ function renderTrailShop() {
       btnHtml = `<button class="skin-btn selected" disabled>DIPAKAI</button>`;
     } else if (unlocked) {
       btnHtml = `<button class="skin-btn select" data-id="${t.id}" data-action="select">PILIH</button>`;
+    } else if (t.rewardOnly) {
+      btnHtml = `<button class="skin-btn locked" disabled>🔒 ${t.rewardLabel || 'HADIAH KHUSUS'}</button>`;
     } else {
       const afford = wallet >= t.cost;
       btnHtml = `<button class="skin-btn ${afford ? 'buy' : 'locked'}${costType === 'diamond' ? ' buy-diamond' : ''}" data-id="${t.id}" data-action="buy" ${afford ? '' : 'disabled'}>BELI ${icon}${t.cost}</button>`;
@@ -3929,7 +4105,7 @@ function startGame() {
   dinoTrail = [];
   dustParticles = [];
   sparkles = [];
-  activeBuffs = { speed: 0, jump: 0, coin2x: 0, shield: 0, magnet: 0, slowmo: 0 };
+  activeBuffs = { speed: 0, jump: 0, coin2x: 0, shield: 0, magnet: 0, slowmo: 0, ghost: 0 };
   score = 0;
   runCoins = 0;
   runDiamonds = 0;
@@ -3950,6 +4126,8 @@ function startGame() {
   biomeScoreMark = 0;
   weatherSeen = new Set();
   biomeSeen = new Set();
+  runStartMs = Date.now();
+  ghostMission2AlertShown = false;
   resetDino();
   setWeather('clear');
   setBiome('padang');
@@ -4183,8 +4361,38 @@ document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '3.1';
+const APP_VERSION = '4.0';
 const NEWS_LIST = [
+  {
+    version: '4.0',
+    date: '26 Agu 2026',
+    title: '🎃 EVENT HANTU — Terbatas sampai 15 Sept 2026!',
+    items: [
+      '👻 Event spesial dimulai! Lobby & Padang Rumput bertema hantu selama event.',
+      '🎯 2 misi baru — cek lewat ikon 👻 di lobby buat lihat progress & hadiahnya.',
+      '🦴 Buff baru "Hantu": tembus pandang & bisa terobos rintangan sementara.',
+      '🎁 Hadiah eksklusif: Skin "Hantu Kelana" & Jejak Kaki Hantu — cuma bisa didapat selama event.',
+      '🖼️ Icon aplikasi juga ikut bertema hantu selama event berlangsung.'
+    ]
+  },
+  {
+    version: '3.3',
+    date: '26 Agu 2026',
+    title: 'Update 3.3 — Badai Salju',
+    items: [
+      '❄️ Hujan di biome Salju sekarang jadi Badai Salju (kepingan salju), bukan tetesan air.'
+    ]
+  },
+  {
+    version: '3.2',
+    date: '26 Agu 2026',
+    title: 'Update 3.2 — Profil & Skin Diperbarui',
+    items: [
+      '🦖 Lencana buff di badan dino kini besar & jelas — langsung kelihatan buff apa yang dimiliki tiap skin.',
+      '👤 Halaman Profil dapat panel "Skin Aktif" baru, section lebih rapi.',
+      '📊 Kartu profil sekarang menampilkan skor tertinggi & koin.'
+    ]
+  },
   {
     version: '3.1',
     date: '26 Agu 2026',
@@ -4272,6 +4480,70 @@ document.getElementById('introVersion').textContent = 'v' + APP_VERSION;
 document.getElementById('titleVersionText').textContent = 'KyznStudio · v' + APP_VERSION;
 checkNewsUnread();
 
+/* ===================== PANEL EVENT HANTU ===================== */
+function formatGhostCountdown(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (d > 0) return `${d}h ${h}j ${m}m lagi`;
+  if (h > 0) return `${h}j ${m}m ${s}d lagi`;
+  return `${m}m ${s}d lagi`;
+}
+function renderGhostEventPanel() {
+  const countdownEl = document.getElementById('ghostCountdown');
+  if (!ghostEventActive()) {
+    countdownEl.textContent = 'Event sudah berakhir';
+  } else {
+    countdownEl.textContent = '⏳ Berakhir dalam: ' + formatGhostCountdown(ghostEventTimeLeft());
+  }
+  const eg = data.eventGhost;
+  const m1Done = !!eg.mission1Done, m2Done = !!eg.mission2Done;
+  const m1Progress = Math.min(eg.nightPasses || 0, GHOST_MISSION1_TARGET);
+  const list = document.getElementById('ghostMissionList');
+  list.innerHTML = `
+    <div class="ghost-mission-item${m1Done ? ' done' : ''}">
+      <div class="ghost-mission-title">${m1Done ? '✅' : '1️⃣'} Lewati Biome Malam Hari sebanyak ${GHOST_MISSION1_TARGET}x</div>
+      <div class="ghost-mission-reward">🎁 Hadiah: Jejak Kaki Hantu</div>
+      <div class="ghost-mission-bar-track"><div class="ghost-mission-bar-fill" style="width:${(m1Progress / GHOST_MISSION1_TARGET) * 100}%"></div></div>
+      <div class="ghost-mission-progress-text">${m1Progress} / ${GHOST_MISSION1_TARGET}</div>
+    </div>
+    <div class="ghost-mission-item${m2Done ? ' done' : ''}">
+      <div class="ghost-mission-title">${m2Done ? '✅' : '2️⃣'} Bertahan 6 menit dalam 1x main</div>
+      <div class="ghost-mission-reward">🎁 Hadiah: Skin Hantu Kelana</div>
+      <div class="ghost-mission-bar-track"><div class="ghost-mission-bar-fill" style="width:${m2Done ? 100 : 0}%"></div></div>
+      <div class="ghost-mission-progress-text">${m2Done ? 'Selesai!' : 'Belum selesai'}</div>
+    </div>`;
+}
+function updateGhostEventButtonVisibility() {
+  const btn = document.getElementById('ghostEventBtn');
+  const active = ghostEventActive();
+  btn.classList.toggle('visible', active);
+  if (active) {
+    const bothDone = data.eventGhost.mission1Done && data.eventGhost.mission2Done;
+    btn.classList.toggle('has-reward', !bothDone);
+  }
+}
+document.getElementById('ghostEventBtn').addEventListener('click', () => {
+  renderGhostEventPanel();
+  document.getElementById('ghostEventOverlay').classList.add('active');
+  AudioMgr.sfx('click');
+});
+document.getElementById('ghostEventCloseBtn').addEventListener('click', () => {
+  document.getElementById('ghostEventOverlay').classList.remove('active');
+});
+document.getElementById('ghostEventOverlay').addEventListener('click', (e) => {
+  if (e.target.id === 'ghostEventOverlay') e.target.classList.remove('active');
+});
+// Countdown di-refresh tiap detik SELAMA panelnya lagi kebuka, biar hitung mundurnya jalan live.
+setInterval(() => {
+  if (document.getElementById('ghostEventOverlay').classList.contains('active')) {
+    renderGhostEventPanel();
+  }
+}, 1000);
+updateGhostEventButtonVisibility();
+
 function endGame() {
   AudioMgr.sfx('gameover');
   const isNewBest = Math.floor(score) > data.highScore;
@@ -4350,6 +4622,17 @@ function drawDino() {
   }
   let alpha = 1;
   if (invincible > 0 && Math.floor(frame / 5) % 2 === 0) alpha = 0.35;
+  // Buff Hantu: badan dino jadi tembus pandang + kabut ungu tipis melayang di sekitarnya.
+  if (activeBuffs.ghost > 0) {
+    alpha *= 0.55;
+    ctx.save();
+    ctx.globalAlpha = 0.22 + Math.sin(frame * 0.15) * 0.08;
+    ctx.fillStyle = '#b8a6ff';
+    ctx.beginPath();
+    ctx.ellipse(dino.x + dino.w / 2, dino.y + dino.h / 2, dino.w * 0.85, dino.h * 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
   if (activeBuffs.shield > 0) {
     ctx.save();
     ctx.strokeStyle = 'rgba(94,200,255,0.75)';
@@ -4741,13 +5024,13 @@ const WEATHER_TINT = {
   kabut: { color: '#cdd4d6', amount: 0.55 }
 };
 function skyColors() {
-  const base = BIOMES[biome].sky;
+  const base = activeBiomeDef(biome).sky;
   const tint = WEATHER_TINT[weather];
   if (!tint) return base;
   return [blendHex(base[0], tint.color, tint.amount), blendHex(base[1], tint.color, tint.amount * 0.7)];
 }
 function groundColors() {
-  const g = BIOMES[biome].ground;
+  const g = activeBiomeDef(biome).ground;
   const tint = WEATHER_TINT[weather];
   if (!tint) return g;
   return {
@@ -4758,7 +5041,7 @@ function groundColors() {
   };
 }
 function hillColor(layer) {
-  const h = BIOMES[biome].hill;
+  const h = activeBiomeDef(biome).hill;
   const base = layer === 'back' ? h.back : h.front;
   const tint = WEATHER_TINT[weather];
   if (!tint) return base;
@@ -4865,6 +5148,15 @@ function drawClouds() {
 }
 
 function drawRain() {
+  if (isBlizzard()) {
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    rainDrops.forEach(d => {
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.len, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    return;
+  }
   ctx.strokeStyle = 'rgba(170,200,235,0.7)';
   ctx.lineWidth = 2;
   rainDrops.forEach(d => {
@@ -4951,6 +5243,7 @@ function rectOverlap(ax, ay, aw, ah, bx, by, bw, bh, pad) {
 /* ===================== UPDATE ===================== */
 function update() {
   frame++;
+  if (frame % 30 === 0) checkGhostMission2(); // cek tiap ~0.5 detik, gak perlu tiap frame
 
   if (dino.jumping) {
     dino.vy += GRAVITY;
@@ -5023,6 +5316,7 @@ function update() {
   for (const o of obstacles) {
     if (o.type === 'lightning' && o.state !== 'strike') continue;
     if (activeBuffs.speed > 0) continue; // buff kecepatan = terobos rintangan sementara
+    if (activeBuffs.ghost > 0) continue; // buff hantu = badan jadi tembus pandang, terobos rintangan
     if (rectOverlap(dino.x, dino.y, dino.w, dino.h, o.x, o.y, o.w, o.h, 6)) {
       if (activeBuffs.shield > 0) {
         activeBuffs.shield = 0;
@@ -5090,7 +5384,7 @@ function update() {
   });
   sparkles = sparkles.filter(s => s.life > 0);
 
-  ['speed', 'jump', 'coin2x', 'shield', 'magnet', 'slowmo'].forEach(k => { if (activeBuffs[k] > 0) activeBuffs[k]--; });
+  ['speed', 'jump', 'coin2x', 'shield', 'magnet', 'slowmo', 'ghost'].forEach(k => { if (activeBuffs[k] > 0) activeBuffs[k]--; });
 
   if (activeBuffs.speed > 0) {
     dinoTrail.push({ x: dino.x, y: dino.y, jumping: dino.jumping, frame });
@@ -5109,12 +5403,22 @@ function update() {
   popups = popups.filter(p => p.life > 0);
 
   if (weather === 'rain') {
-    rainDrops.forEach(d => {
-      d.y += d.speed;
-      d.x -= effSpeed * 0.3;
-      if (d.y > VH) { d.y = -10; d.x = Math.random() * VW; }
-      if (d.x < 0) d.x = VW;
-    });
+    if (isBlizzard()) {
+      rainDrops.forEach(d => {
+        d.y += d.speed;
+        d.swayPhase += d.swaySpeed;
+        d.x += Math.sin(d.swayPhase) * 1.4 - effSpeed * 0.55; // melayang + tertiup angin badai
+        if (d.y > VH) { d.y = -10; d.x = Math.random() * VW; }
+        if (d.x < -10) d.x = VW + 10;
+      });
+    } else {
+      rainDrops.forEach(d => {
+        d.y += d.speed;
+        d.x -= effSpeed * 0.3;
+        if (d.y > VH) { d.y = -10; d.x = Math.random() * VW; }
+        if (d.x < 0) d.x = VW;
+      });
+    }
   }
   if (weather === 'wind') {
     windLines.forEach(l => {
@@ -5167,6 +5471,7 @@ function spawnTrailParticle(effSpeed) {
   else if (t.type === 'electric') { p.vy = (Math.random() - 0.5) * 1.2; }
   else if (t.type === 'bubble') { p.vy = -0.9 - Math.random() * 0.4; }
   else if (t.type === 'rainbow') { p.color = RAINBOW_COLORS[Math.floor(Math.random() * RAINBOW_COLORS.length)]; p.vy = -0.4; }
+  else if (t.type === 'ghost') { p.vy = -0.45; p.swayPhase = Math.random() * Math.PI * 2; }
   dustParticles.push(p);
 }
 function drawDust() {
@@ -5232,6 +5537,25 @@ function drawDust() {
         ctx.strokeStyle = d.color; ctx.fillStyle = d.color2; ctx.lineWidth = 1;
         ctx.globalAlpha = k * 0.35;
         ctx.beginPath(); ctx.arc(d.x, d.y, 3 + age * 0.1, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        break;
+      }
+      case 'ghost': {
+        // Gumpalan kabut hantu mini: lingkaran lembut dengan pinggir bawah
+        // bergelombang, meniru siluet hantu kecil, melayang & memudar ke atas.
+        if (d.swayPhase !== undefined) d.swayPhase += 0.12;
+        const sway = Math.sin(d.swayPhase || 0) * 2;
+        ctx.globalAlpha = k * 0.55;
+        ctx.fillStyle = d.color2 || d.color;
+        ctx.beginPath();
+        const r = 4 + age * 0.12;
+        ctx.arc(d.x + sway, d.y, r, Math.PI, 0);
+        for (let i = 0; i <= 3; i++) {
+          const wx = d.x + sway - r + (i * (r * 2 / 3));
+          const wy = d.y + (i % 2 === 0 ? r * 0.5 : r * 0.9);
+          ctx.lineTo(wx, wy);
+        }
+        ctx.closePath();
+        ctx.fill();
         break;
       }
       default: {

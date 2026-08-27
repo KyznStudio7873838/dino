@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dino-runner-v19-skin-buff-visible';
+const CACHE_NAME = 'dino-runner-v22-ghost-event';
 const ASSETS = [
   './',
   './index.html',

@@ -4361,8 +4361,24 @@ document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '4.0';
+const APP_VERSION = '4.2';
 const NEWS_LIST = [
+  {
+    version: '4.2',
+    date: '28 Agu 2026',
+    title: 'Update 4.2 — Tab Shop Special',
+    items: [
+      '✨ Tab baru "SPECIAL" di Toko — segera hadir 20 September!'
+    ]
+  },
+  {
+    version: '4.1',
+    date: '27 Agu 2026',
+    title: 'Update 4.1 — Rintangan Tema Hantu',
+    items: [
+      '🪦 Selama Event Hantu, semua kaktus diganti jadi nisan bersalib — di SEMUA biome (gurun, salju, malam, dll), warnanya otomatis menyesuaikan biome-nya, bukan cuma satu warna dipaksain sama.'
+    ]
+  },
   {
     version: '4.0',
     date: '26 Agu 2026',
@@ -4650,6 +4666,19 @@ function cactusColors() {
   if (weather === 'wind') return { main: '#8a9a4f', dark: '#68762f' };
   return { main: '#3f9e4a', dark: '#2c7434' };
 }
+// Warna nisan/salib buat reskin Event Hantu — beda-beda ikut biome yang lagi
+// aktif, jadi tetap "nyambung" walau lagi di gurun/salju/malam/dll, bukan
+// cuma satu warna generik yang dipaksain sama di semua biome.
+function ghostObstacleColors() {
+  switch (biome) {
+    case 'gurun': return { main: '#c9b088', dark: '#9a8058' };
+    case 'salju': return { main: '#eef6fb', dark: '#b9cdda' };
+    case 'malam': return { main: '#565668', dark: '#34343f' };
+    case 'hutan': return { main: '#7f8f76', dark: '#4f5c48' };
+    case 'pantai': return { main: '#cdbb9c', dark: '#a08e70' };
+    default: return { main: '#9a95a6', dark: '#6b6678' }; // padang / default
+  }
+}
 
 function drawObstacle(o) {
   if (o.type === 'lightning') {
@@ -4851,6 +4880,35 @@ function drawObstacle(o) {
       ctx.beginPath(); ctx.arc(Math.cos(a) * (o.w * 0.7), Math.sin(a) * (o.h * 0.55), 2, 0, Math.PI * 2); ctx.fill();
     }
     ctx.restore();
+    return;
+  }
+
+  // Selama Event Hantu: kaktus diganti jadi nisan bersalib, warnanya ikut
+  // biome yang lagi aktif (gurun=batu pasir, salju=batu es, malam=batu gelap,
+  // dll) — jadi tetap nyambung ke tema biome, bukan cuma "kaktus" yang aneh
+  // kalau muncul di tengah salju.
+  if (ghostEventActive()) {
+    const gc = ghostObstacleColors();
+    const drawTombstone = (tx, ty, tw, th) => {
+      ctx.fillStyle = gc.main;
+      roundRectPath(ctx, tx, ty + th * 0.12, tw, th * 0.88, tw * 0.35);
+      ctx.fill();
+      // salib kecil di atas nisan
+      ctx.fillStyle = gc.dark;
+      const cx = tx + tw / 2;
+      ctx.fillRect(cx - Math.max(1.5, tw * 0.08), ty - th * 0.22, Math.max(3, tw * 0.16), th * 0.3);
+      ctx.fillRect(cx - tw * 0.28, ty - th * 0.1, tw * 0.56, Math.max(3, tw * 0.16));
+      // garis retak dekoratif di badan nisan
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(tx + tw * 0.3, ty + th * 0.5); ctx.lineTo(tx + tw * 0.42, ty + th * 0.75); ctx.stroke();
+    };
+    if (o.type === 'cactusGroup') {
+      drawTombstone(o.x, o.y + 6, 14, o.h - 6);
+      drawTombstone(o.x + 18, o.y - 4, 16, o.h + 4);
+      drawTombstone(o.x + 37, o.y + 6, 15, o.h - 6);
+    } else {
+      drawTombstone(o.x, o.y, o.w, o.h);
+    }
     return;
   }
 

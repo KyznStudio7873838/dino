@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dino-runner-v22-ghost-event';
+const CACHE_NAME = 'dino-runner-v24-special-shop';
 const ASSETS = [
   './',
   './index.html',

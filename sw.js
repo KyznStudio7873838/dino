@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dino-runner-v25-castle-mode';
+const CACHE_NAME = 'dino-runner-v26-castle-portal';
 const ASSETS = [
   './',
   './index.html',

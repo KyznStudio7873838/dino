@@ -1405,64 +1405,87 @@ body[data-gfx="rendah"] .buff-chip {
   #bossBarTrack { width: 100%; height: 11px; background: rgba(0,0,0,0.4); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.4); box-shadow: 0 3px 8px rgba(0,0,0,0.25); }
   #bossBarFill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff5d5d, #b8161a); border-radius: 6px; transition: width 0.15s ease; }
 
-  /* ===== Kontrol Castle Mode: joystick kiri + lompat & 3 serang kanan ===== */
+  /* ===== Kontrol Castle Mode: joystick kiri + cluster aksi kanan (lompat besar + 3 serang busur) ===== */
   #castleControls {
     position: fixed;
     left: 0; right: 0; bottom: 0;
     display: none;
     justify-content: space-between;
     align-items: flex-end;
-    padding: 0 18px max(20px, env(safe-area-inset-bottom));
+    padding: 0 16px max(22px, env(safe-area-inset-bottom));
     z-index: 8;
   }
   #castleControls.visible { display: flex; }
   .castle-joystick {
-    width: 88px; height: 88px;
+    width: 100px; height: 100px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.14);
     border: 2px solid rgba(255,255,255,0.4);
+    box-shadow: inset 0 0 14px rgba(0,0,0,0.25);
     position: relative;
     touch-action: none;
+  }
+  .castle-joystick::after {
+    content: '◀ ▶';
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.35);
+    font-size: 12px; letter-spacing: 4px;
+    pointer-events: none;
   }
   .castle-joystick-knob {
     position: absolute;
     top: 50%; left: 50%;
-    width: 40px; height: 40px;
-    margin: -20px 0 0 -20px;
+    width: 44px; height: 44px;
+    margin: -22px 0 0 -22px;
     border-radius: 50%;
     background: radial-gradient(circle at 35% 30%, #ffffff, #cfcfe0);
-    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.35);
     transition: transform 0.05s linear;
+    z-index: 1;
   }
-  .castle-action-cluster { display: flex; align-items: flex-end; gap: 10px; }
+  /* cluster kanan: tombol serang tersusun busur di kiri-atas tombol lompat,
+     supaya semua bisa dijangkau jempol tanpa geser tangan */
+  .castle-action-cluster {
+    position: relative;
+    width: 168px; height: 132px;
+  }
   .castle-jump-btn {
-    width: 62px; height: 62px;
+    position: absolute;
+    right: 0; bottom: 0;
+    width: 72px; height: 72px;
     border-radius: 50%;
     background: radial-gradient(circle at 35% 30%, #7ec8ff, #2f7fcf);
-    border: 3px solid rgba(255,255,255,0.75);
+    border: 3px solid rgba(255,255,255,0.8);
     color: #fff;
-    font-size: 9px;
-    font-weight: bold;
-    line-height: 1.2;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 1.25;
+    box-shadow: 0 5px 14px rgba(0,0,0,0.4);
   }
   .castle-jump-btn:active { transform: scale(0.9); }
-  .castle-attack-row { display: flex; gap: 8px; }
+  .castle-attack-row { position: absolute; inset: 0; }
   .castle-attack-btn {
-    width: 52px; height: 52px;
+    position: absolute;
+    width: 54px; height: 54px;
     border-radius: 50%;
     background: radial-gradient(circle at 35% 30%, #ff8a5c, #d94f24);
-    border: 3px solid rgba(255,255,255,0.75);
+    border: 3px solid rgba(255,255,255,0.8);
     color: #fff;
-    font-size: 20px;
+    font-size: 21px;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    box-shadow: 0 5px 14px rgba(0,0,0,0.4);
   }
+  /* posisi busur: dari atas kiri jump btn, melengkung ke kiri-bawah */
+  .castle-attack-btn[data-slot="0"] { left: 0; bottom: 6px; }
+  .castle-attack-btn[data-slot="1"] { left: 20px; top: 4px; }
+  .castle-attack-btn[data-slot="2"] { right: 14px; top: -14px; }
   .castle-attack-btn:active { transform: scale(0.9); }
   .castle-attack-btn.locked {
     background: linear-gradient(160deg, #6a6a72, #3f3f46);
-    font-size: 16px;
-    opacity: 0.75;
+    font-size: 15px;
+    opacity: 0.6;
+    box-shadow: none;
   }
 
   #skillToast {

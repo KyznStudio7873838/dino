@@ -697,7 +697,7 @@ function qSaveCheckpoint(mapIndex, completed) {
   if (completed) {
     data.questProgress = null;
     data.questCompleted = true;
-    // Buka semua skin hadiah (misal Naga Emas) begitu story mode tamat —
+    // Buka semua skin hadiah begitu story mode tamat —
     // KECUALI skin hadiah event (eventOnly), itu cuma bisa didapat lewat misi event-nya sendiri.
     SKINS.filter(s => s.rewardOnly && !s.eventOnly).forEach(s => {
       if (!data.unlocked.includes(s.id)) data.unlocked.push(s.id);
@@ -734,11 +734,6 @@ const SKINS = [
   { id: 5, name: 'Ungu Misteri', cost: 300,
     body: '#8a4fd9', head: '#6a34ad', belly: '#e8d3ff', eye: '#fff',
     spikeStyle: 'crown', pattern: 'stripes', tailStyle: 'spiked', horn: true, affinity: 'all' },
-  { id: 6, name: 'Naga Emas', cost: 0, rewardOnly: true, rewardLabel: 'Hadiah tamat Chapter 1',
-    body: '#f2c33c', head: '#a9720f', belly: '#fff6c9', eye: '#ff5722',
-    spikeStyle: 'flame', pattern: 'stars', tailStyle: 'spiked', horn: true, hornStyle: 'twin', hornColor: '#8a5a10',
-    wings: true, wingColor: '#e8ac1f', wingLight: '#fff3b0',
-    shimmer: true, shimmerColor: '#fff6cf', shimmerDark: '#c98a12', affinity: 'all' },
   { id: 7, name: 'Kristal Berlian', cost: 60, costType: 'diamond',
     body: '#bfe9ff', head: '#8fd3f0', belly: '#eafcff', eye: '#1c2440',
     spikeStyle: 'fin', pattern: 'scales', tailStyle: 'fin', horn: true, hornColor: '#5ec8ff',
@@ -923,7 +918,8 @@ let castle = {
   spawnTimer: 0, nextSpawnGap: 80,
   mantraTimer: 0, nextMantraGap: 260,
   attackCooldowns: [0, 0, 0],
-  invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false
+  invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false,
+  portal: null, floorCleared: false
 };
 function castleResetRun() {
   castle = {
@@ -934,7 +930,8 @@ function castleResetRun() {
     spawnTimer: 0, nextSpawnGap: 80,
     mantraTimer: 0, nextMantraGap: 260,
     attackCooldowns: [0, 0, 0],
-    invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false
+    invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false,
+    portal: null, floorCleared: false
   };
 }
 function castleFloorDef() { return CASTLE_FLOORS[castle.floor]; }
@@ -966,12 +963,20 @@ function castleSpawnMantra() {
   const type = needSkill && Math.random() < 0.5 ? 'skill' : 'hp';
   castle.mantras.push({ type, x: 30 + Math.random() * (VW - 60), y: GROUND_Y - 22, bob: Math.random() * Math.PI * 2 });
 }
+function castleSpawnPortal() {
+  if (castle.portal) return;
+  castle.floorCleared = true;
+  castle.portal = { x: VW - 56, y: GROUND_Y, r: 30, t: 0 };
+  castleToast('🌀 Portal muncul! Masuk portalnya buat lanjut ke lantai berikutnya');
+}
 function castleAdvanceFloor() {
   castle.floor++;
   castle.score = 0;
   castle.enemies = [];
   castle.boss = null;
   castle.bossActive = false;
+  castle.portal = null;
+  castle.floorCleared = false;
   bossBarWrap.style.display = 'none';
   castle.spawnTimer = 0;
   if (castle.floor > 4) {
@@ -1010,6 +1015,11 @@ function castleUpdateProgress() {
   const f = castleFloorDef();
   const label = document.getElementById('castleProgressLabel');
   const fill = document.getElementById('castleProgressFill');
+  if (castle.floorCleared && castle.portal) {
+    label.textContent = '🌀 Masuk portal buat lanjut!';
+    fill.style.width = '100%';
+    return;
+  }
   if (f.isBossFloor) {
     label.textContent = castle.boss ? `Kalahkan ${CASTLE_ENEMY_DEFS[f.bossType].name}!` : '';
     fill.style.width = castle.boss ? `${100 - (castle.boss.hp / castle.boss.maxHp * 100)}%` : '0%';
@@ -1094,8 +1104,8 @@ function castleUpdate() {
     if (dino.y >= GROUND_Y - dino.h) { dino.y = GROUND_Y - dino.h; dino.jumping = false; dino.vy = 0; }
   }
 
-  // spawn musuh biasa (non-boss floor, atau floor 4 sebelum raja muncul)
-  if (!f.isBossFloor && !castle.bossActive) {
+  // spawn musuh biasa (non-boss floor, atau floor 4 sebelum raja muncul) — berhenti kalau lantai sudah clear/portal aktif
+  if (!f.isBossFloor && !castle.bossActive && !castle.floorCleared) {
     castle.spawnTimer++;
     if (castle.spawnTimer > castle.nextSpawnGap) {
       castleSpawnEnemy();
@@ -1103,12 +1113,14 @@ function castleUpdate() {
       castle.nextSpawnGap = f.gap[0] + Math.random() * (f.gap[1] - f.gap[0]);
     }
   }
-  // spawn mantra
-  castle.mantraTimer++;
-  if (castle.mantraTimer > castle.nextMantraGap) {
-    castleSpawnMantra();
-    castle.mantraTimer = 0;
-    castle.nextMantraGap = 300 + Math.random() * 220;
+  // spawn mantra (juga berhenti kalau lantai sudah clear)
+  if (!castle.floorCleared) {
+    castle.mantraTimer++;
+    if (castle.mantraTimer > castle.nextMantraGap) {
+      castleSpawnMantra();
+      castle.mantraTimer = 0;
+      castle.nextMantraGap = 300 + Math.random() * 220;
+    }
   }
 
   // update musuh biasa
@@ -1147,7 +1159,10 @@ function castleUpdate() {
     castleUpdateBossBar();
     if (b.hp <= 0) {
       AudioMgr.sfx('unlock');
-      if (f.isBossFloor) { castleAdvanceFloor(); }
+      castle.boss = null;
+      castle.bossActive = false;
+      bossBarWrap.style.display = 'none';
+      if (f.isBossFloor) { castleSpawnPortal(); }
       else { castleVictory(); }
     }
   }
@@ -1186,13 +1201,145 @@ function castleUpdate() {
     return true;
   });
 
-  // naik lantai kalau skor target tercapai (bukan boss floor, bukan lagi lawan raja)
-  if (!f.isBossFloor && !castle.bossActive && castle.score >= f.target) {
-    castleAdvanceFloor();
+  // munculkan portal kalau skor target tercapai (bukan boss floor, bukan lagi lawan raja)
+  if (!f.isBossFloor && !castle.bossActive && !castle.floorCleared && castle.score >= f.target) {
+    castleSpawnPortal();
+  }
+
+  // cek dino masuk portal -> baru pindah lantai
+  if (castle.portal) {
+    castle.portal.t += 0.06;
+    const pdx = castle.portal.x - cx, pdy = (castle.portal.y - 30) - (dino.y + dino.h / 2);
+    if (Math.sqrt(pdx * pdx + pdy * pdy) < 30) {
+      AudioMgr.sfx('unlock');
+      castleAdvanceFloor();
+    }
   }
 
   castleUpdateHpBar();
   castleUpdateProgress();
+}
+function castleDrawZombieBody(e, def, flash) {
+  const w = e.w, h = e.h;
+  const limp = Math.sin(e.walkFrame) * 0.12; // kepala/badan miring dikit tiap langkah, kesan pincang
+  // bayangan tanah
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.42, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+
+  // lengan menjuntai ke depan (khas zombie)
+  ctx.strokeStyle = flash ? '#ffdddd' : def.dark;
+  ctx.lineWidth = Math.max(3, w * 0.13);
+  ctx.lineCap = 'round';
+  const armSwing = Math.sin(e.walkFrame * 0.7) * 3;
+  ctx.beginPath(); ctx.moveTo(-w * 0.36, -h * 0.62); ctx.lineTo(-w * 0.58, -h * 0.32 + armSwing); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(w * 0.36, -h * 0.62); ctx.lineTo(w * 0.58, -h * 0.3 - armSwing); ctx.stroke();
+
+  // torso robek compang-camping di bagian bawah
+  ctx.save();
+  ctx.rotate(limp * 0.3);
+  ctx.fillStyle = flash ? '#ffdddd' : def.color;
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.46, -h * 0.72);
+  ctx.lineTo(w * 0.46, -h * 0.72);
+  ctx.lineTo(w * 0.46, -h * 0.22);
+  ctx.lineTo(w * 0.30, -h * 0.02);
+  ctx.lineTo(w * 0.12, -h * 0.24);
+  ctx.lineTo(-w * 0.04, 0);
+  ctx.lineTo(-w * 0.26, -h * 0.2);
+  ctx.lineTo(-w * 0.46, -h * 0.02);
+  ctx.closePath();
+  ctx.fill();
+  // bercak luka/decay
+  ctx.fillStyle = flash ? '#ffeeee' : 'rgba(0,0,0,0.22)';
+  ctx.beginPath(); ctx.ellipse(-w * 0.14, -h * 0.5, w * 0.09, h * 0.06, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w * 0.18, -h * 0.35, w * 0.07, h * 0.05, -0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  // kepala miring, rahang menganga
+  ctx.save();
+  ctx.translate(w * 0.05 * Math.sin(e.walkFrame * 0.5), -h * 0.85);
+  ctx.rotate(limp);
+  ctx.fillStyle = flash ? '#ffffff' : def.color;
+  ctx.beginPath(); ctx.arc(0, 0, w * 0.32, 0.15, Math.PI * 2 - 0.15); ctx.fill();
+  // rahang bawah terbuka
+  ctx.fillStyle = flash ? '#ffdddd' : def.dark;
+  ctx.beginPath(); ctx.ellipse(0, w * 0.2, w * 0.16, w * 0.12, 0, 0, Math.PI); ctx.fill();
+  // mata satu sipit satu melotot
+  ctx.fillStyle = '#c9ffb0';
+  ctx.beginPath(); ctx.arc(-w * 0.12, -w * 0.04, 2.8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w * 0.13, -w * 0.02, 1.6, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  if (def.isBoss) {
+    ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, -h * 0.85, w * 0.34 + 5, 0, Math.PI * 2); ctx.stroke();
+  }
+}
+function castleDrawVampireBody(e, def, flash) {
+  const w = e.w, h = e.h;
+  const sway = Math.sin(e.walkFrame * 0.5) * 0.08;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.42, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+
+  // jubah lebar mengembang di belakang badan
+  ctx.save();
+  ctx.rotate(sway * 0.4);
+  const capeFlare = 1 + Math.sin(e.walkFrame * 0.6) * 0.06;
+  ctx.fillStyle = flash ? '#ffdddd' : def.dark;
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.28, -h * 0.7);
+  ctx.lineTo(-w * 0.98 * capeFlare, -h * 0.15);
+  ctx.lineTo(-w * 0.7, h * 0.02);
+  ctx.lineTo(-w * 0.2, -h * 0.12);
+  ctx.lineTo(-w * 0.2, -h * 0.02);
+  ctx.lineTo(0, -h * 0.1);
+  ctx.lineTo(w * 0.2, -h * 0.02);
+  ctx.lineTo(w * 0.2, -h * 0.12);
+  ctx.lineTo(w * 0.7, h * 0.02);
+  ctx.lineTo(w * 0.98 * capeFlare, -h * 0.15);
+  ctx.lineTo(w * 0.28, -h * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  // lapisan dalam jubah warna merah
+  ctx.fillStyle = 'rgba(180,30,50,0.55)';
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.22, -h * 0.62); ctx.lineTo(-w * 0.55, -h * 0.1); ctx.lineTo(0, -h * 0.05); ctx.lineTo(w * 0.55, -h * 0.1); ctx.lineTo(w * 0.22, -h * 0.62);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  // badan ramping berjas
+  ctx.fillStyle = flash ? '#ffffff' : def.color;
+  roundRectPath(ctx, -w * 0.3, -h * 0.75, w * 0.6, h * 0.55, w * 0.16);
+  ctx.fill();
+  // kerah tinggi runcing di leher
+  ctx.fillStyle = flash ? '#ffdddd' : def.dark;
+  ctx.beginPath(); ctx.moveTo(-w * 0.28, -h * 0.7); ctx.lineTo(-w * 0.08, -h * 0.92); ctx.lineTo(-w * 0.08, -h * 0.6); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(w * 0.28, -h * 0.7); ctx.lineTo(w * 0.08, -h * 0.92); ctx.lineTo(w * 0.08, -h * 0.6); ctx.closePath(); ctx.fill();
+
+  // kepala pucat + rambut klimis poni-V + mata merah menyala + taring
+  ctx.save();
+  ctx.translate(0, -h * 0.88);
+  ctx.rotate(sway);
+  ctx.fillStyle = flash ? '#ffffff' : '#e8d6d0';
+  ctx.beginPath(); ctx.arc(0, 0, w * 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = flash ? '#ffdddd' : def.dark;
+  ctx.beginPath();
+  ctx.arc(0, -w * 0.02, w * 0.32, Math.PI * 1.05, Math.PI * 1.95); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(0, -w * 0.06); ctx.lineTo(-w * 0.05, w * 0.06); ctx.lineTo(w * 0.05, w * 0.06); ctx.closePath(); ctx.fill();
+  ctx.shadowColor = '#ff3b4d'; ctx.shadowBlur = 6;
+  ctx.fillStyle = '#ff3b4d';
+  ctx.beginPath(); ctx.arc(-w * 0.11, -w * 0.02, 2.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w * 0.11, -w * 0.02, 2.4, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.moveTo(-w * 0.08, w * 0.1); ctx.lineTo(-w * 0.05, w * 0.18); ctx.lineTo(-w * 0.02, w * 0.1); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(w * 0.08, w * 0.1); ctx.lineTo(w * 0.05, w * 0.18); ctx.lineTo(w * 0.02, w * 0.1); ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  if (def.isBoss) {
+    ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, -h * 0.85, w * 0.34 + 5, 0, Math.PI * 2); ctx.stroke();
+  }
 }
 function castleDrawEnemy(e) {
   const def = CASTLE_ENEMY_DEFS[e.type];
@@ -1200,25 +1347,11 @@ function castleDrawEnemy(e) {
   ctx.translate(e.x + e.w / 2, e.y + e.h);
   const bob = Math.sin(e.walkFrame) * 2;
   ctx.translate(0, bob);
-  ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : def.dark;
-  ctx.beginPath(); ctx.ellipse(0, 2, e.w * 0.42, e.h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = e.hitFlash > 0 ? '#ffdddd' : def.color;
-  roundRectPath(ctx, -e.w / 2, -e.h, e.w, e.h * 0.72, e.w * 0.22);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(0, -e.h * 0.85, e.w * 0.34, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#e5484d';
-  ctx.beginPath(); ctx.arc(-e.w * 0.12, -e.h * 0.88, 2.6, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(e.w * 0.12, -e.h * 0.88, 2.6, 0, Math.PI * 2); ctx.fill();
-  if (def.isBoss) {
-    ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, -e.h * 0.85, e.w * 0.34 + 4, 0, Math.PI * 2); ctx.stroke();
-  }
-  if (e.type === 'vampire') {
-    ctx.fillStyle = def.dark;
-    ctx.beginPath(); ctx.moveTo(-e.w / 2, -e.h * 0.55); ctx.lineTo(-e.w * 0.9, -e.h * 0.75); ctx.lineTo(-e.w / 2, -e.h * 0.35); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(e.w / 2, -e.h * 0.55); ctx.lineTo(e.w * 0.9, -e.h * 0.75); ctx.lineTo(e.w / 2, -e.h * 0.35); ctx.closePath(); ctx.fill();
+  const flash = e.hitFlash > 0;
+  if (e.type === 'vampire' || e.type === 'vampireKing') {
+    castleDrawVampireBody(e, def, flash);
+  } else {
+    castleDrawZombieBody(e, def, flash);
   }
   // health mini-bar per musuh biasa (bukan boss, boss pakai bar besar terpisah)
   if (!def.isBoss) {
@@ -1236,6 +1369,43 @@ function castleDrawMantra(m) {
   ctx.shadowColor = m.type === 'hp' ? 'rgba(255,90,110,0.8)' : 'rgba(184,166,255,0.8)';
   ctx.shadowBlur = 10;
   ctx.fillText(m.type === 'hp' ? '❤' : '✨', 0, 0);
+  ctx.restore();
+}
+function castleDrawPortal(p) {
+  ctx.save();
+  ctx.translate(p.x, p.y - 36);
+  const pulse = 1 + Math.sin(p.t * 3) * 0.06;
+  ctx.scale(pulse, pulse);
+  // cahaya luar
+  const glow = ctx.createRadialGradient(0, 0, 4, 0, 0, 46);
+  glow.addColorStop(0, 'rgba(184,166,255,0.55)');
+  glow.addColorStop(1, 'rgba(184,166,255,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(0, 0, 46, 0, Math.PI * 2); ctx.fill();
+  // gerbang batu
+  ctx.strokeStyle = '#2a1f38'; ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.ellipse(0, 0, 26, 36, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = '#4a3860'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(0, 0, 26, 36, 0, 0, Math.PI * 2); ctx.stroke();
+  // pusaran ungu berputar
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(0, 0, 22, 32, 0, 0, Math.PI * 2); ctx.clip();
+  ctx.fillStyle = '#160e22'; ctx.fillRect(-24, -34, 48, 68);
+  for (let i = 0; i < 4; i++) {
+    const ang = p.t * (i % 2 === 0 ? 1.4 : -1.6) + i * 1.6;
+    const grd = ctx.createLinearGradient(-22, 0, 22, 0);
+    grd.addColorStop(0, 'rgba(184,166,255,0)');
+    grd.addColorStop(0.5, `rgba(${190 - i * 15},${170 - i * 10},255,0.55)`);
+    grd.addColorStop(1, 'rgba(184,166,255,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 22 - i * 3, 32 - i * 5, ang, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+  ctx.shadowColor = 'rgba(230,220,255,0.9)'; ctx.shadowBlur = 14;
+  ctx.font = '20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('🌀', 0, 0);
   ctx.restore();
 }
 function castleDrawBackground() {
@@ -1264,6 +1434,7 @@ function castleDrawBackground() {
 }
 function castleDraw() {
   castleDrawBackground();
+  if (castle.portal) castleDrawPortal(castle.portal);
   castle.mantras.forEach(castleDrawMantra);
   castle.enemies.slice().sort((a, b) => a.y - b.y).forEach(castleDrawEnemy);
   if (castle.boss) castleDrawEnemy(castle.boss);
@@ -2737,8 +2908,20 @@ document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '5.0';
+const APP_VERSION = '5.1';
 const NEWS_LIST = [
+  {
+    version: '5.1',
+    date: '30 Agu 2026',
+    title: '🌀 Kastil: Portal Antar Lantai + Musuh Baru!',
+    items: [
+      '🌀 Naik lantai sekarang lewat PORTAL — begitu target lantai selesai, portal muncul dan kamu harus masuk dulu baru pindah lantai.',
+      '🧟 Model zombie dirombak: badan robek compang-camping, lengan menjuntai, rahang menganga.',
+      '🧛 Model vampir dirombak: jubah merah mengembang, kerah tinggi, rambut klimis, taring & mata menyala.',
+      '🕹️ Kontrol Kastil dirapikan: tombol lompat diperbesar & 3 tombol serang disusun busur biar jempol gak perlu geser-geser lagi.',
+      '🗑️ Skin "Naga Emas" dihapus dari hadiah tamat Chapter 1.'
+    ]
+  },
   {
     version: '5.0',
     date: '29 Agu 2026',

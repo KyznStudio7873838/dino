@@ -37,14 +37,9 @@ const streakPill = document.getElementById('streakPill');
 const hudStreak = document.getElementById('hudStreak');
 const buffRow = document.getElementById('buffRow');
 const questHud = document.getElementById('questHud');
-const qAgeLabel = document.getElementById('qAgeLabel');
-const qAgeVal = document.getElementById('qAgeVal');
-const qMapNameEl = document.getElementById('qMapName');
-const qLivesEl = document.getElementById('qLives');
 const bossBarWrap = document.getElementById('bossBarWrap');
 const bossBarFill = document.getElementById('bossBarFill');
 const bossNameEl = document.getElementById('bossName');
-const attackBtn = document.getElementById('attackBtn');
 const skillToast = document.getElementById('skillToast');
 const storyOverlay = document.getElementById('storyOverlay');
 const storyIcon = document.getElementById('storyIcon');
@@ -289,7 +284,7 @@ function setGfxQuality(q) {
       juga tidak pernah tercampur. Tanpa akun online, semua tetap berjalan
       100% lokal seperti biasa.
 ================================================================================ */
-const PROFILE_KEYS = ['highScore', 'coins', 'diamonds', 'unlocked', 'selectedSkin', 'questProgress', 'questCompleted', 'mantraCount', 'chapter2StageDone', 'chapter2IntroSeen', 'achievements', 'bestStreak', 'dailyDate', 'dailyChallengeId', 'dailyDone', 'dailyClaimed', 'unlockedTrails', 'selectedTrail', 'eventGhost'];
+const PROFILE_KEYS = ['highScore', 'coins', 'diamonds', 'unlocked', 'selectedSkin', 'questProgress', 'questCompleted', 'mantraCount', 'chapter2StageDone', 'chapter2IntroSeen', 'achievements', 'bestStreak', 'dailyDate', 'dailyChallengeId', 'dailyDone', 'dailyClaimed', 'unlockedTrails', 'selectedTrail', 'eventGhost', 'castleProgress', 'castleMantraCount', 'castleBestFloor'];
 function profileStorageKey(profileId, key) { return `dino_p_${profileId}_${key}`; }
 function simpleHash(str) {
   let h = 0;
@@ -378,7 +373,8 @@ function exportSave() {
       selectedSkin: data.selectedSkin, questProgress: data.questProgress, questCompleted: data.questCompleted,
       mantraCount: data.mantraCount, chapter2StageDone: data.chapter2StageDone, chapter2IntroSeen: data.chapter2IntroSeen,
       achievements: data.achievements, bestStreak: data.bestStreak,
-      unlockedTrails: data.unlockedTrails, selectedTrail: data.selectedTrail, eventGhost: data.eventGhost
+      unlockedTrails: data.unlockedTrails, selectedTrail: data.selectedTrail, eventGhost: data.eventGhost,
+      castleProgress: data.castleProgress, castleMantraCount: data.castleMantraCount, castleBestFloor: data.castleBestFloor
     }
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -412,6 +408,9 @@ function handleImportSaveFile(file) {
     localStorage.setItem(profileStorageKey(id, 'unlockedTrails'), JSON.stringify(payload.data.unlockedTrails || [0]));
     localStorage.setItem(profileStorageKey(id, 'selectedTrail'), String(payload.data.selectedTrail || 0));
     localStorage.setItem(profileStorageKey(id, 'eventGhost'), JSON.stringify(payload.data.eventGhost || {}));
+    localStorage.setItem(profileStorageKey(id, 'castleProgress'), JSON.stringify(payload.data.castleProgress || null));
+    localStorage.setItem(profileStorageKey(id, 'castleMantraCount'), String(payload.data.castleMantraCount || 0));
+    localStorage.setItem(profileStorageKey(id, 'castleBestFloor'), String(payload.data.castleBestFloor || 1));
     data = loadData();
     refreshLobbyStats();
     renderAccountScreen();
@@ -555,6 +554,12 @@ async function pullServerDataIntoActiveProfile() {
   set('dailyChallengeId', d.dailyChallengeId || '');
   set('dailyDone', String(!!d.dailyDone));
   set('dailyClaimed', String(!!d.dailyClaimed));
+  set('unlockedTrails', JSON.stringify(d.unlockedTrails || [0]));
+  set('selectedTrail', String(d.selectedTrail || 0));
+  set('eventGhost', JSON.stringify(d.eventGhost || {}));
+  set('castleProgress', JSON.stringify(d.castleProgress || null));
+  set('castleMantraCount', String(d.castleMantraCount || 0));
+  set('castleBestFloor', String(d.castleBestFloor || 1));
   data = loadData();
   refreshLobbyStats();
 }
@@ -643,7 +648,10 @@ function loadData() {
     dailyClaimed: get('dailyClaimed', 'false') === 'true',
     unlockedTrails: JSON.parse(get('unlockedTrails', '[0]')),
     selectedTrail: parseInt(get('selectedTrail', '0'), 10),
-    eventGhost: (() => { try { return JSON.parse(get('eventGhost', '{}')); } catch (e) { return {}; } })()
+    eventGhost: (() => { try { return JSON.parse(get('eventGhost', '{}')); } catch (e) { return {}; } })(),
+    castleProgress: (() => { try { return JSON.parse(get('castleProgress', 'null')); } catch (e) { return null; } })(),
+    castleMantraCount: parseInt(get('castleMantraCount', '0'), 10),
+    castleBestFloor: parseInt(get('castleBestFloor', '1'), 10)
   };
 }
 let data = loadData();
@@ -675,6 +683,9 @@ function saveData() {
   set('unlockedTrails', JSON.stringify(data.unlockedTrails));
   set('selectedTrail', String(data.selectedTrail));
   set('eventGhost', JSON.stringify(data.eventGhost));
+  set('castleProgress', JSON.stringify(data.castleProgress));
+  set('castleMantraCount', String(data.castleMantraCount || 0));
+  set('castleBestFloor', String(data.castleBestFloor || 1));
   scheduleServerPush();
 }
 /* Simpan checkpoint story mode: dipanggil tiap kali sebuah bos berhasil dikalahkan,
@@ -873,2049 +884,412 @@ function updateBuffRow() {
   buffRow.innerHTML = html;
 }
 
-/* ===================== QUEST MODE ===================== */
-/* Kisah asal-usul si dino: dari kecil menetas di hutan purba, tumbuh besar
-   menjelajahi gurun, dataran es, reruntuhan kota, hingga desa terpencil,
-   menghadapi bos penguasa tiap wilayah untuk membuktikan dirinya. */
-const MAPS = [
-  {
-    id: 'forest', name: 'Hutan Purba', ageStart: 0, ageEnd: 20,
-    sky: ['#bfe6a0', '#eaffe0'], ground: '#4f9c36', groundDark: '#3a7326', dirt: '#6b4f2c',
-    enemyName: 'Serigala Hutan', bossName: 'Raja Serigala', enemyColor: '#6b5a45', bossColor: '#4a3a28',
-    introTitle: 'TELUR YANG MENETAS', introIcon: '🥚',
-    introText: 'Di tengah rimbunnya Hutan Purba, sebutir telur retak perlahan.\nSeekor dino kecil menetas, sendirian, lemah, dan penuh rasa ingin tahu.\n\nIa belum tahu siapa dirinya — tapi hutan ini akan menjadi awal perjalanannya.',
-    victoryText: 'Raja Serigala tumbang. Hutan Purba kini tenang.\nSang dino kecil merasakan sesuatu tumbuh dalam dirinya: keberanian.\n\nIa melangkah keluar dari rimbunnya pepohonan, menuju cakrawala baru...'
-  },
-  {
-    id: 'desert', name: 'Gurun Tandus', ageStart: 20, ageEnd: 40,
-    sky: ['#f2c98a', '#fdeccb'], ground: '#c9a870', groundDark: '#a8875a', dirt: '#b5915c',
-    enemyName: 'Kalajengking Pasir', bossName: 'Kalajengking Purba', enemyColor: '#c98f3f', bossColor: '#8a5a1f',
-    introTitle: 'MELINTASI GURUN', introIcon: '🏜️',
-    introText: 'Dino kini lebih besar, langkahnya makin mantap.\nPasir panas terbentang luas, dan di baliknya bersembunyi\nmakhluk-makhluk pasir yang tak ramah.\n\nIa harus terus berjalan mencari asal-usulnya.',
-    victoryText: 'Kalajengking Purba akhirnya kalah, terkubur pasirnya sendiri.\nDino merasakan tubuhnya makin kuat.\n\nDi kejauhan, ia melihat puncak putih menjulang: dataran es menantinya.'
-  },
-  {
-    id: 'snow', name: 'Dataran Es', ageStart: 40, ageEnd: 60,
-    sky: ['#c7dcec', '#eef6fb'], ground: '#e8f1f7', groundDark: '#c3d6e2', dirt: '#aebfcb',
-    enemyName: 'Beruang Es', bossName: 'Beruang Es Raksasa', enemyColor: '#eaf3f8', bossColor: '#bcd6e6',
-    introTitle: 'DINGINNYA DATARAN ES', introIcon: '❄️',
-    introText: 'Udara dingin menusuk, namun dino tak gentar.\nSetengah perjalanan telah ia lalui, tubuhnya kini jauh lebih besar\ndari saat pertama menetas.\n\nDi balik badai salju, sesuatu yang besar sedang mengintai.',
-    victoryText: 'Beruang Es Raksasa akhirnya tunduk.\nDino berdiri gagah di atas salju, bekas luka menjadi bukti perjuangannya.\n\nDi kejauhan, asap kelabu membumbung — reruntuhan sebuah kota tua.'
-  },
-  {
-    id: 'city', name: 'Reruntuhan Kota', ageStart: 60, ageEnd: 80,
-    sky: ['#9aa3b0', '#c9d0d8'], ground: '#6b6f75', groundDark: '#4a4d52', dirt: '#5a5d62',
-    enemyName: 'Robot Penjaga', bossName: 'Robot Komandan', enemyColor: '#4a4d52', bossColor: '#2e3033',
-    introTitle: 'KOTA YANG TERLUPAKAN', introIcon: '🏚️',
-    introText: 'Reruntuhan kota tua berdiri sunyi, dijaga mesin-mesin tua\nyang masih beroperasi entah untuk siapa.\n\nDino kini hampir dewasa. Jawaban tentang asal-usulnya\nterasa semakin dekat.',
-    victoryText: 'Robot Komandan runtuh berkeping-keping.\nDi antara reruntuhan, dino menemukan jejak purba — gambar dino lain\nseperti dirinya, digambar oleh tangan-tangan kuno.\n\nJejak itu menuntunnya ke sebuah desa kecil di ujung jalan.'
-  },
-  {
-    id: 'village', name: 'Desa Terpencil', ageStart: 80, ageEnd: 100,
-    sky: ['#f2b28a', '#ffe0c2'], ground: '#7fa04a', groundDark: '#5c7d33', dirt: '#8a6a3f',
-    enemyName: 'Bandit Tombak', bossName: 'Kepala Bandit', enemyColor: '#5a4630', bossColor: '#3a2c1a',
-    introTitle: 'DESA TERAKHIR', introIcon: '🏘️',
-    introText: 'Di desa terpencil ini, penduduk bercerita tentang dino purba\nyang dulu menjaga tanah mereka — sebelum diusir para bandit.\n\nDino kini dewasa sepenuhnya. Inilah tempat ia berasal.',
-    victoryText: 'Kepala Bandit kalah, dan desa kembali damai.\nPara penduduk mengenali sorot mata sang dino —\nia adalah keturunan penjaga tanah mereka yang telah lama hilang.\n\nPerjalanan dari telur kecil di hutan, hingga menjadi penjaga sejati,\nakhirnya sampai pada tujuannya.'
-  }
-];
-
-const SKILLS = [
-  { age: 10, name: 'Gigitan Kecil', dmg: 1, icon: '🦷' },
-  { age: 20, name: 'Cakar Tajam', dmg: 1, icon: '🐾' },
-  { age: 30, name: 'Sabetan Ekor', dmg: 2, icon: '💫' },
-  { age: 40, name: 'Aum Kejut', dmg: 2, icon: '📢' },
-  { age: 50, name: 'Serangan Purba', dmg: 3, icon: '🔥' },
-];
-
+/* ===================== MODE (dipakai loop utama, dll) ===================== */
 let mode = 'normal'; // 'normal' | 'quest'
-let qAge = 0;
-let qMapIndex = 0;
-let qLives = 3;
-let qInvincible = 0;
-let qSpeed = 5;
-let qFrame = 0;
-let qEntities = [];
-let qEntityTimer = 0;
-let qNextEntityGap = 80;
-let qUnlockedSkills = [];
-let qBossActive = false;
-let qBoss = null;
-let qBossDefeatedForMap = {};
-let qAttackCooldown = 0;
-let qAttackFlash = 0;
-let qGroundOffset = 0;
-let qPopups = [];
-let qClouds = [];
-let qPaused = false;
-let storyQueue = [];
-let inChapter2 = false;
-let q2Y = 0;
-let q2Vy = 0;
-let q2Thrust = false;
-let q2Entities = [];
-let q2Timer = 0;
-let q2NextGap = 90;
-let q2MantraRun = 0;
-const Q2_TARGET = 15;
-let q2Speed = 4.5;
-let q2Frame = 0;
-let q2FireCooldown = 0;
-let q2FireFlash = 0;
-let q2Clouds = [];
-let q2Weather = 'calm';
-let q2WeatherTimer = 0;
-let q2Lightnings = [];
+let qPaused = false; // dipakai Story Mode buat jeda internal (dialog dsb), terpisah dari `paused` biasa
 
-function currentSkillDamage() {
-  if (!qUnlockedSkills.length) return 0;
-  return qUnlockedSkills[qUnlockedSkills.length - 1].dmg;
+
+/* ===================== STORY MODE: KASTIL TUA =====================
+   Dino terjebak di kastil tua berisi zombie. Kontrol penuh di tangan
+   pemain: joystick analog kiri-kanan + tombol lompat + 3 slot serang
+   (cuma slot 1 yang aktif dari awal, 2 lainnya kekunci sampai ketemu
+   Mantra Skill). HP 150 bisa nambah lewat Mantra Nyawa. 4 lantai:
+   1) zombie biasa, 2) zombie mutasi (lebih besar & sakit), 3) boss
+   zombie raksasa sendirian, 4) campuran + vampir + Raja Vampir. */
+const CASTLE_ENEMY_DEFS = {
+  zombie:      { w: 30, h: 38, hp: 20,  dmg: 8,  speed: 0.55, color: '#5a7a4f', dark: '#33482c', scoreOnKill: 8 },
+  zombieBig:   { w: 42, h: 52, hp: 46,  dmg: 14, speed: 0.42, color: '#3f5c33', dark: '#243a1c', scoreOnKill: 16 },
+  vampire:     { w: 28, h: 40, hp: 26,  dmg: 11, speed: 0.95, color: '#5a2a3a', dark: '#33141d', scoreOnKill: 14 },
+  zombieBoss:  { w: 70, h: 80, hp: 260, dmg: 22, speed: 0.3,  color: '#2e4526', dark: '#182a12', scoreOnKill: 0, isBoss: true, name: 'ZOMBIE RAKSASA' },
+  vampireKing: { w: 60, h: 76, hp: 320, dmg: 26, speed: 0.65, color: '#4a1a2a', dark: '#280d17', scoreOnKill: 0, isBoss: true, name: 'RAJA VAMPIR' }
+};
+const CASTLE_SKILLS = [
+  { name: 'Cakar', dmg: 12, range: 40, cooldown: 24, icon: '👊' },
+  { name: 'Gigitan', dmg: 20, range: 55, cooldown: 36, icon: '🦷' },
+  { name: 'Hantam Ekor', dmg: 32, range: 46, cooldown: 50, icon: '💥' }
+];
+const CASTLE_FLOORS = [
+  null,
+  { name: 'Lantai 1 — Aula Bawah', target: 150, pool: ['zombie'], gap: [65, 105] },
+  { name: 'Lantai 2 — Ruang Mutasi', target: 220, pool: ['zombieBig'], gap: [85, 130] },
+  { name: 'Lantai 3 — Ruang Boss', target: 0, pool: [], isBossFloor: true, bossType: 'zombieBoss' },
+  { name: 'Lantai 4 — Puncak Kastil', target: 260, kingTarget: 220, pool: ['zombie', 'zombieBig', 'vampire'], gap: [55, 95] }
+];
+let castle = {
+  floor: 1, hp: 150, maxHp: 150, score: 0,
+  skillsUnlocked: [true, false, false],
+  enemies: [], mantras: [],
+  boss: null, bossActive: false,
+  spawnTimer: 0, nextSpawnGap: 80,
+  mantraTimer: 0, nextMantraGap: 260,
+  attackCooldowns: [0, 0, 0],
+  invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false
+};
+function castleResetRun() {
+  castle = {
+    floor: 1, hp: 150, maxHp: 150, score: 0,
+    skillsUnlocked: [true, false, false],
+    enemies: [], mantras: [],
+    boss: null, bossActive: false,
+    spawnTimer: 0, nextSpawnGap: 80,
+    mantraTimer: 0, nextMantraGap: 260,
+    attackCooldowns: [0, 0, 0],
+    invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false
+  };
 }
-function questDinoSize() {
-  const scale = 0.6 + Math.min(qAge, 100) / 100 * 0.8;
-  return { w: Math.round(40 * scale), h: Math.round(40 * scale) };
+function castleFloorDef() { return CASTLE_FLOORS[castle.floor]; }
+function castleSpawnEnemy(typeOverride) {
+  const f = castleFloorDef();
+  const type = typeOverride || f.pool[Math.floor(Math.random() * f.pool.length)];
+  const def = CASTLE_ENEMY_DEFS[type];
+  const fromLeft = Math.random() < 0.5;
+  castle.enemies.push({
+    type, x: fromLeft ? -40 : VW + 40, y: GROUND_Y - def.h,
+    w: def.w, h: def.h, hp: def.hp, maxHp: def.hp,
+    dmg: def.dmg, speed: def.speed, atkCooldown: 0, hitFlash: 0, walkFrame: Math.random() * 10
+  });
 }
-function showToast(text) {
+function castleSpawnBoss(type) {
+  const def = CASTLE_ENEMY_DEFS[type];
+  castle.boss = {
+    type, x: VW / 2 - def.w / 2, y: GROUND_Y - def.h,
+    w: def.w, h: def.h, hp: def.hp, maxHp: def.hp,
+    dmg: def.dmg, speed: def.speed, atkCooldown: 0, hitFlash: 0, walkFrame: 0
+  };
+  castle.bossActive = true;
+  bossBarWrap.style.display = 'block';
+  bossNameEl.textContent = def.name;
+  castleUpdateBossBar();
+}
+function castleSpawnMantra() {
+  const needSkill = castle.skillsUnlocked.includes(false);
+  const type = needSkill && Math.random() < 0.5 ? 'skill' : 'hp';
+  castle.mantras.push({ type, x: 30 + Math.random() * (VW - 60), y: GROUND_Y - 22, bob: Math.random() * Math.PI * 2 });
+}
+function castleAdvanceFloor() {
+  castle.floor++;
+  castle.score = 0;
+  castle.enemies = [];
+  castle.boss = null;
+  castle.bossActive = false;
+  bossBarWrap.style.display = 'none';
+  castle.spawnTimer = 0;
+  if (castle.floor > 4) {
+    castleVictory();
+    return;
+  }
+  const f = castleFloorDef();
+  castleToast(`🏰 ${f.name}`);
+  document.getElementById('castleFloorPill').textContent = `🏰 LANTAI ${castle.floor}`;
+  if (f.isBossFloor) castleSpawnBoss(f.bossType);
+  data.castleBestFloor = Math.max(data.castleBestFloor || 1, castle.floor);
+  saveData();
+}
+function castleVictory() {
+  castle.completed = true;
+  state = 'playing';
+  data.castleProgress = { completed: true };
+  data.castleMantraCount = (data.castleMantraCount || 0) + 0;
+  saveData();
+  castleToast('👑 RAJA VAMPIR TUMBANG! KASTIL TAMAT!');
+  setTimeout(() => { castleEndGame(true); }, 1400);
+}
+function castleToast(text) {
   skillToast.textContent = text;
   skillToast.classList.add('show');
-  setTimeout(() => skillToast.classList.remove('show'), 2200);
+  clearTimeout(skillToast._t);
+  skillToast._t = setTimeout(() => skillToast.classList.remove('show'), 2400);
 }
-/* ---- Halaman komik: SATU halaman penuh berisi beberapa panel sekaligus,
-   dibaca sekali lihat seperti komik cetak asli — tidak ada tombol "next"
-   untuk pindah antar-panel, hanya satu tombol lanjut per halaman/bab. ---- */
-function panel(draw, caption) { return { draw, caption }; }
-function queueStory(icon, title, text, onContinue, tone) {
-  storyQueue.push({ title, text, onContinue, btnLabel: 'LANJUT', panels: [panel((c, w, h) => drawIconPanel(c, w, h, icon, tone), null)] });
+function castleUpdateHpBar() {
+  const pct = Math.max(0, castle.hp / castle.maxHp * 100);
+  document.getElementById('castleHpFill').style.width = pct + '%';
+  document.getElementById('castleHpFill').style.background = pct < 25 ? '#e5484d' : pct < 55 ? '#ffb84d' : '#5cd65c';
+  document.getElementById('castleHpText').textContent = `${Math.max(0, Math.round(castle.hp))}/${castle.maxHp}`;
 }
-function queueComic(title, draw, text, onContinue) {
-  storyQueue.push({ title, text, onContinue, btnLabel: 'LANJUT', panels: [panel(draw, null)] });
-}
-/* Halaman multi-panel: panels = [{draw,caption}, ...] tampil sekaligus dalam 1 halaman */
-function queueComicPage(title, panels, text, onContinue, btnLabel) {
-  storyQueue.push({ title, text, onContinue, btnLabel: btnLabel || 'LANJUT', panels });
-}
-function wrapLines(cctx, text, maxWidth, maxLines) {
-  const words = String(text).replace(/\n/g, ' ').split(/\s+/).filter(Boolean);
-  const lines = [];
-  let line = '';
-  for (const w of words) {
-    const test = line ? line + ' ' + w : w;
-    if (cctx.measureText(test).width > maxWidth && line) { lines.push(line); line = w; }
-    else line = test;
-    if (lines.length >= maxLines) break;
+function castleUpdateProgress() {
+  const f = castleFloorDef();
+  const label = document.getElementById('castleProgressLabel');
+  const fill = document.getElementById('castleProgressFill');
+  if (f.isBossFloor) {
+    label.textContent = castle.boss ? `Kalahkan ${CASTLE_ENEMY_DEFS[f.bossType].name}!` : '';
+    fill.style.width = castle.boss ? `${100 - (castle.boss.hp / castle.boss.maxHp * 100)}%` : '0%';
+  } else if (castle.floor === 4 && castle.bossActive) {
+    label.textContent = 'Kalahkan RAJA VAMPIR!';
+    fill.style.width = castle.boss ? `${100 - (castle.boss.hp / castle.boss.maxHp * 100)}%` : '0%';
+  } else {
+    const target = castle.floor === 4 ? f.kingTarget : f.target;
+    label.textContent = `Bertahan: ${Math.min(castle.score, target)}/${target}`;
+    fill.style.width = `${Math.min(100, castle.score / target * 100)}%`;
   }
-  if (line && lines.length < maxLines) lines.push(line);
-  return lines;
 }
-const ICON_PANEL_TONES = {
-  danger: { sky: ['#3a1414', '#5c2424'], ground: '#20100c', accent: 'rgba(255,60,60,0.85)' },
-  victory: { sky: ['#3a2e0c', '#5c4a18'], ground: '#241c08', accent: 'rgba(255,215,107,0.9)' },
-  default: { sky: ['#161626', '#26263a'], ground: '#12121c', accent: 'rgba(255,255,255,0.55)' }
-};
-function drawIconPanel(cctx, w, h, icon, tone) {
-  const pal = ICON_PANEL_TONES[tone] || ICON_PANEL_TONES.default;
-  comicBg(cctx, w, h, pal.sky, pal.ground);
-  comicDots(cctx, w, h, '#000', 0.14);
-  comicSpeedLines(cctx, w, h, w / 2, h * 0.42, pal.accent);
-  cctx.save();
-  cctx.textAlign = 'center';
-  cctx.textBaseline = 'middle';
-  cctx.font = Math.floor(Math.min(w, h) * 0.42) + 'px serif';
-  cctx.fillText(icon || '🦖', w / 2, h * 0.42);
-  cctx.restore();
-  comicFrame(cctx, w, h);
+function castleUpdateBossBar() {
+  if (!castle.boss) return;
+  bossBarFill.style.width = Math.max(0, castle.boss.hp / castle.boss.maxHp * 100) + '%';
 }
-/* Menyusun & menggambar SATU halaman komik penuh: judul, panel-panel, dan narasi
-   SEMUA digambar di dalam kanvas komik itu sendiri — tidak ada teks di luar komik. */
-function renderComicPage(title, panels, narration) {
-  const pageW = 320;
-  const gap = 7;
-  const n = panels.length;
-  const cols = n >= 4 ? 2 : 1;
-  const rows = n >= 4 ? 2 : (n || 1);
-  const panelW = Math.floor((pageW - gap * (cols + 1)) / cols);
-  const panelH = Math.floor(panelW * (cols === 1 ? 0.58 : 0.8));
-  const gridH = gap * (rows + 1) + panelH * rows;
-
-  const cctx = storyComicCtx;
-  const narrFont = '10px "Courier New", monospace';
-  cctx.font = narrFont;
-  const narrLineH = 13;
-  const narrPad = 10;
-  const narrLines = narration ? wrapLines(cctx, narration, pageW - 32, 24) : [];
-  const narrH = narration ? (narrLines.length * narrLineH + narrPad * 2 + 6) : 0;
-  const titleH = title ? 30 : 0;
-  const pageH = titleH + gridH + (narration ? gap + narrH : gap * 0.4);
-
-  storyComic.width = pageW;
-  storyComic.height = pageH;
-  cctx.fillStyle = '#d8cfb4';
-  cctx.fillRect(0, 0, pageW, pageH);
-  comicDots(cctx, pageW, pageH, '#8a7f5c', 0.35);
-  cctx.strokeStyle = '#0c0c0c'; cctx.lineWidth = 5;
-  cctx.strokeRect(2.5, 2.5, pageW - 5, pageH - 5);
-
-  let y = 0;
-  if (title) {
-    cctx.save();
-    cctx.fillStyle = '#161311';
-    cctx.fillRect(4, 4, pageW - 8, titleH - 6);
-    cctx.strokeStyle = '#ffd76b'; cctx.lineWidth = 2;
-    cctx.strokeRect(6, 6, pageW - 12, titleH - 10);
-    cctx.fillStyle = '#ffd76b';
-    cctx.font = 'italic 900 15px "Courier New", monospace';
-    cctx.textAlign = 'center';
-    cctx.textBaseline = 'middle';
-    cctx.fillText(title.toUpperCase(), pageW / 2, titleH / 2 + 1);
-    cctx.restore();
-    y = titleH;
+function castleUpdateSkillButtons() {
+  for (let i = 0; i < 3; i++) {
+    const btn = document.getElementById('castleAtk' + i);
+    if (castle.skillsUnlocked[i]) {
+      btn.classList.remove('locked');
+      btn.textContent = CASTLE_SKILLS[i].icon;
+    } else {
+      btn.classList.add('locked');
+      btn.textContent = '🔒';
+    }
   }
-  y += gap;
-  panels.forEach((p, i) => {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const x = gap + col * (panelW + gap);
-    const py = y + row * (panelH + gap);
-    cctx.save();
-    cctx.translate(x, py);
-    cctx.beginPath(); cctx.rect(0, 0, panelW, panelH); cctx.clip();
-    p.draw(cctx, panelW, panelH);
-    cctx.restore();
-    cctx.strokeStyle = '#0c0c0c';
-    cctx.lineWidth = 4;
-    cctx.strokeRect(x + 2, py + 2, panelW - 4, panelH - 4);
-    if (p.caption) {
-      cctx.font = 'bold 9px "Courier New", monospace';
-      const lines = wrapLines(cctx, p.caption, panelW - 16, 3);
-      const capH = lines.length * 11 + 8;
-      cctx.fillStyle = 'rgba(255,255,255,0.94)';
-      cctx.fillRect(x + 5, py + panelH - capH - 5, panelW - 10, capH);
-      cctx.strokeStyle = '#0c0c0c'; cctx.lineWidth = 1.4;
-      cctx.strokeRect(x + 5, py + panelH - capH - 5, panelW - 10, capH);
-      cctx.fillStyle = '#0c0c0c';
-      cctx.textAlign = 'center';
-      lines.forEach((ln, li) => cctx.fillText(ln, x + panelW / 2, py + panelH - capH + 6 + li * 11));
+}
+function castleAttack(slot) {
+  if (state !== 'playing' || mode !== 'quest' || paused) return;
+  if (!castle.skillsUnlocked[slot]) return;
+  if (castle.attackCooldowns[slot] > 0) return;
+  const sk = CASTLE_SKILLS[slot];
+  castle.attackCooldowns[slot] = sk.cooldown;
+  AudioMgr.sfx('hit');
+  const cx = dino.x + dino.w / 2;
+  const targets = castle.boss ? [castle.boss] : castle.enemies;
+  let hitAny = false;
+  targets.forEach(e => {
+    const ecx = e.x + e.w / 2;
+    if (Math.abs(ecx - cx) <= sk.range) {
+      e.hp -= sk.dmg;
+      e.hitFlash = 8;
+      hitAny = true;
     }
   });
-
-  if (narration) {
-    const ny = y + gridH;
-    cctx.fillStyle = 'rgba(255,255,255,0.96)';
-    cctx.fillRect(8, ny, pageW - 16, narrH);
-    cctx.strokeStyle = '#0c0c0c'; cctx.lineWidth = 2;
-    cctx.strokeRect(8, ny, pageW - 16, narrH);
-    cctx.fillStyle = '#161311';
-    cctx.font = narrFont;
-    cctx.textAlign = 'left';
-    cctx.textBaseline = 'alphabetic';
-    narrLines.forEach((ln, li) => cctx.fillText(ln, 16, ny + narrPad + 8 + li * narrLineH));
-  }
+  if (hitAny) { dino.attackFlashT = 6; }
 }
-function playNextStory() {
-  if (!storyQueue.length) {
-    storyOverlay.classList.remove('active');
-    qPaused = false;
-    return;
-  }
-  const s = storyQueue.shift();
-  storyIcon.style.display = 'none';
-  storyComic.style.display = 'block';
-  renderComicPage(s.title, s.panels, s.text);
-  storyOverlay.classList.add('active');
-  qPaused = true;
-  storyBtn.textContent = s.btnLabel || 'LANJUT';
-  storyBtn.onclick = () => { if (s.onContinue) s.onContinue(); playNextStory(); };
+function castleTakeDamage(amount) {
+  if (castle.invincible > 0) return;
+  castle.hp -= amount;
+  castle.invincible = 45;
+  castle.shakeT = 10;
+  AudioMgr.sfx('hit');
+  if (castle.hp <= 0) { castle.hp = 0; castleEndGame(false); }
 }
-/* ---- Komik ilustrasi: induk dino & lima bos yang membunuhnya ---- */
-const PARENT_SKIN = { head: '#2e6b32', body: '#3f9a45', belly: '#eaffe0', eye: '#fff', horn: true, spikeStyle: 'crown', pattern: 'plain', tailStyle: 'spiked' };
-
-/* Bingkai + tekstur ala komik cetak (garis tebal hitam + titik halftone) */
-function comicVignette(cctx, w, h) {
-  cctx.save();
-  const g = cctx.createRadialGradient(w / 2, h * 0.42, Math.min(w, h) * 0.25, w / 2, h * 0.42, Math.max(w, h) * 0.72);
-  g.addColorStop(0, 'rgba(0,0,0,0)');
-  g.addColorStop(0.75, 'rgba(0,0,0,0.05)');
-  g.addColorStop(1, 'rgba(0,0,0,0.4)');
-  cctx.fillStyle = g;
-  cctx.fillRect(0, 0, w, h);
-  cctx.restore();
+function castleEndGame(victory) {
+  state = 'gameover';
+  document.getElementById('goStatsNormal').style.display = 'none';
+  document.getElementById('goStatsQuest').style.display = '';
+  document.getElementById('goTitle').textContent = victory ? '👑 KASTIL TAMAT!' : '💀 TERTUMBANG DI KASTIL';
+  document.getElementById('goTitle').classList.toggle('new-best', victory);
+  document.getElementById('goAge').textContent = victory ? '4 (Tamat)' : String(castle.floor);
+  document.getElementById('goMap').textContent = victory ? 'Raja Vampir Tumbang!' : (CASTLE_FLOORS[castle.floor] ? CASTLE_FLOORS[castle.floor].name : '-');
+  showScreen('gameover');
 }
-function comicGroundShadow(cctx, cx, gy, rx, ry) {
-  cctx.save();
-  const sg = cctx.createRadialGradient(cx, gy, 1, cx, gy, rx);
-  sg.addColorStop(0, 'rgba(0,0,0,0.4)');
-  sg.addColorStop(1, 'rgba(0,0,0,0)');
-  cctx.fillStyle = sg;
-  cctx.beginPath();
-  cctx.ellipse(cx, gy, rx, ry, 0, 0, Math.PI * 2);
-  cctx.fill();
-  cctx.restore();
-}
-function comicFrame(cctx, w, h) {
-  comicVignette(cctx, w, h);
-  cctx.save();
-  cctx.strokeStyle = '#0c0c0c';
-  cctx.lineWidth = 7;
-  cctx.strokeRect(3.5, 3.5, w - 7, h - 7);
-  cctx.strokeStyle = 'rgba(255,255,255,0.35)';
-  cctx.lineWidth = 1.4;
-  cctx.strokeRect(7.5, 7.5, w - 15, h - 15);
-  cctx.restore();
-}
-function comicDots(cctx, w, h, color, alpha) {
-  cctx.save();
-  cctx.globalAlpha = alpha;
-  cctx.fillStyle = color;
-  for (let yy = 8; yy < h - 6; yy += 9) {
-    const shift = (Math.floor(yy / 9) % 2 === 0) ? 0 : 4.5;
-    for (let xx = 8 + shift; xx < w - 6; xx += 9) {
-      cctx.beginPath(); cctx.arc(xx, yy, 1.1, 0, Math.PI * 2); cctx.fill();
-    }
-  }
-  cctx.restore();
-}
-function comicSpeedLines(cctx, w, h, cx, cy, color) {
-  cctx.save();
-  cctx.strokeStyle = color;
-  cctx.lineWidth = 2;
-  for (let i = 0; i < 10; i++) {
-    const a = (Math.PI * 2 / 10) * i;
-    const r1 = Math.max(w, h) * 0.5, r2 = r1 + 14 + (i % 3) * 6;
-    cctx.beginPath();
-    cctx.moveTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
-    cctx.lineTo(cx + Math.cos(a) * r2, cy + Math.sin(a) * r2);
-    cctx.stroke();
-  }
-  cctx.restore();
-}
-function comicImpactText(cctx, w, h, text, x, y, size, rot) {
-  cctx.save();
-  cctx.translate(x, y);
-  cctx.rotate(rot || -0.08);
-  cctx.font = `italic 900 ${size}px 'Courier New', monospace`;
-  cctx.textAlign = 'center';
-  cctx.lineWidth = 4;
-  cctx.strokeStyle = '#0c0c0c';
-  cctx.strokeText(text, 0, 0);
-  cctx.fillStyle = '#ffe36b';
-  cctx.fillText(text, 0, 0);
-  cctx.restore();
-}
-function comicBg(cctx, w, h, sky, ground) {
-  cctx.clearRect(0, 0, w, h);
-  const g = cctx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, sky[0]); g.addColorStop(0.65, sky[1]); g.addColorStop(1, sky[1]);
-  cctx.fillStyle = g; cctx.fillRect(0, 0, w, h);
-  // cahaya lembut di cakrawala biar langit tidak flat
-  cctx.save();
-  const hz = cctx.createRadialGradient(w * 0.5, h - 26, 2, w * 0.5, h - 26, w * 0.6);
-  hz.addColorStop(0, 'rgba(255,255,255,0.22)');
-  hz.addColorStop(1, 'rgba(255,255,255,0)');
-  cctx.fillStyle = hz;
-  cctx.fillRect(0, 0, w, h);
-  cctx.restore();
-  // tanah dengan gradasi tipis (bukan warna rata)
-  const gg = cctx.createLinearGradient(0, h - 26, 0, h);
-  gg.addColorStop(0, ground);
-  gg.addColorStop(1, 'rgba(0,0,0,0.28)');
-  cctx.fillStyle = gg;
-  cctx.fillRect(0, h - 26, w, 26);
-  cctx.save();
-  cctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  cctx.lineWidth = 1.5;
-  cctx.beginPath(); cctx.moveTo(0, h - 26); cctx.lineTo(w, h - 26); cctx.stroke();
-  cctx.restore();
-}
+function castleUpdate() {
+  frame++;
+  const f = castleFloorDef();
+  if (castle.invincible > 0) castle.invincible--;
+  if (castle.shakeT > 0) castle.shakeT--;
+  for (let i = 0; i < 3; i++) if (castle.attackCooldowns[i] > 0) castle.attackCooldowns[i]--;
 
-/* ---- Model dino kecil (bayi) didesain sendiri, bukan cuma versi mini dino dewasa ---- */
-function drawBabyDinoShape(c, x, y, w, h, skin, jumping, walkFrame, alpha) {
-  c.save();
-  if (alpha !== undefined) c.globalAlpha = alpha;
-  const cx = x + w * 0.46, gy = y + h;
-
-  // ekor kecil melengkung
-  c.fillStyle = skin.body;
-  c.beginPath();
-  c.moveTo(x - w * 0.02, gy - h * 0.42);
-  c.quadraticCurveTo(x - w * 0.32, gy - h * 0.5, x - w * 0.22, gy - h * 0.22);
-  c.quadraticCurveTo(x - w * 0.1, gy - h * 0.3, x + w * 0.06, gy - h * 0.34);
-  c.closePath(); c.fill();
-
-  // kaki mungil
-  c.fillStyle = skin.head;
-  const phase = Math.floor(walkFrame / 10) % 2 === 0;
-  if (!jumping) {
-    roundRectPath(c, x + w * 0.22, gy - h * 0.16, w * 0.14, phase ? h * 0.22 : h * 0.14, 3); c.fill();
-    roundRectPath(c, x + w * 0.56, gy - h * 0.16, w * 0.14, phase ? h * 0.14 : h * 0.22, 3); c.fill();
-  } else {
-    roundRectPath(c, x + w * 0.22, gy - h * 0.16, w * 0.14, h * 0.18, 3); c.fill();
-    roundRectPath(c, x + w * 0.56, gy - h * 0.16, w * 0.14, h * 0.18, 3); c.fill();
-  }
-
-  // badan bulat gemuk
-  c.fillStyle = skin.body;
-  c.beginPath();
-  c.ellipse(cx, gy - h * 0.42, w * 0.4, h * 0.32, 0, 0, Math.PI * 2);
-  c.fill();
-  // perut
-  c.fillStyle = skin.belly || '#fff';
-  c.beginPath();
-  c.ellipse(cx, gy - h * 0.32, w * 0.26, h * 0.18, 0, 0, Math.PI * 2);
-  c.fill();
-
-  // lengan mungil
-  c.fillStyle = skin.body;
-  c.save();
-  c.translate(x + w * 0.72, gy - h * 0.38);
-  c.rotate(0.5);
-  roundRectPath(c, -w * 0.03, 0, w * 0.07, h * 0.16, 3);
-  c.fill();
-  c.restore();
-
-  // duri kecil bulat di kepala (belum tumbuh besar)
-  c.fillStyle = skin.head;
-  for (let i = 0; i < 3; i++) {
-    c.beginPath();
-    c.arc(x + w * 0.32 + i * w * 0.09, y + h * 0.06, w * 0.045, 0, Math.PI * 2);
-    c.fill();
-  }
-
-  // kepala BESAR bulat (proporsi khas bayi)
-  const headCx = x + w * 0.68, headCy = y + h * 0.28, headR = w * 0.36;
-  c.fillStyle = skin.head;
-  c.beginPath(); c.arc(headCx, headCy, headR, 0, Math.PI * 2); c.fill();
-  // moncong kecil bulat
-  c.beginPath();
-  c.ellipse(headCx + headR * 0.75, headCy + headR * 0.2, headR * 0.32, headR * 0.24, 0, 0, Math.PI * 2);
-  c.fill();
-
-  // mata besar & imut (ciri khas bayi)
-  const eyeX = headCx + headR * 0.15, eyeY = headCy - headR * 0.05;
-  c.fillStyle = '#fff';
-  c.beginPath(); c.arc(eyeX, eyeY, headR * 0.42, 0, Math.PI * 2); c.fill();
-  c.fillStyle = skin.eye && skin.eye !== '#fff' ? skin.eye : '#2a2a2a';
-  c.beginPath(); c.arc(eyeX + headR * 0.1, eyeY + headR * 0.04, headR * 0.24, 0, Math.PI * 2); c.fill();
-  c.fillStyle = '#fff';
-  c.beginPath(); c.arc(eyeX + headR * 0.2, eyeY - headR * 0.08, headR * 0.09, 0, Math.PI * 2); c.fill();
-
-  // pipi merona
-  c.fillStyle = 'rgba(255,140,140,0.45)';
-  c.beginPath(); c.arc(headCx - headR * 0.15, headCy + headR * 0.45, headR * 0.22, 0, Math.PI * 2); c.fill();
-
-  c.restore();
-}
-
-function sceneParentProud(cctx, w, h) {
-  comicBg(cctx, w, h, MAPS[0].sky, MAPS[0].ground);
-  comicGroundShadow(cctx, w / 2, h - 24, 46, 8);
-  drawDinoShape(cctx, w / 2 - 55, h - 26 - 92, 110, 92, PARENT_SKIN, false, 0, 1);
-  comicFrame(cctx, w, h);
-}
-function sceneAmbush(cctx, w, h) {
-  comicBg(cctx, w, h, ['#3a1414', '#5c2424'], '#20100c');
-  comicDots(cctx, w, h, '#000', 0.12);
-  cctx.fillStyle = 'rgba(180,20,20,0.2)'; cctx.fillRect(0, 0, w, h);
-  const gy = h - 26;
-  const parentCx = w / 2, parentCy = gy - 42;
-  comicSpeedLines(cctx, w, h, parentCx, parentCy, 'rgba(255,220,120,0.5)');
-  drawDinoShape(cctx, w / 2 - 48, gy - 84, 96, 84, PARENT_SKIN, false, 0, 1);
-  const spots = [[26, 58], [76, 30], [w - 76, 30], [w - 26, 58], [w / 2, 16]];
-  MAPS.forEach((m, i) => drawBossByMapId(cctx, m.id, spots[i][0], spots[i][1], 46, 40, m.bossColor, false));
-  cctx.strokeStyle = 'rgba(255,60,60,0.8)';
-  cctx.lineWidth = 2.5;
-  spots.forEach(p => { cctx.beginPath(); cctx.moveTo(p[0], p[1]); cctx.lineTo(w / 2, gy - 45); cctx.stroke(); });
-  comicImpactText(cctx, w, h, 'GRRAAAHH!!', w / 2, 30, 20, -0.06);
-  comicFrame(cctx, w, h);
-}
-function sceneFallen(cctx, w, h) {
-  comicBg(cctx, w, h, ['#161626', '#26263a'], '#12121c');
-  comicDots(cctx, w, h, '#000', 0.14);
-  const gy = h - 26;
-  cctx.save();
-  cctx.globalAlpha = 0.55;
-  drawDinoShape(cctx, w / 2 - 62, gy - 46, 124, 44, PARENT_SKIN, false, 0, 0.55);
-  cctx.restore();
-  const eggX = w * 0.78, eggY = gy - 20;
-  const glow = cctx.createRadialGradient(eggX, eggY, 2, eggX, eggY, 30);
-  glow.addColorStop(0, 'rgba(255,245,200,0.9)'); glow.addColorStop(1, 'rgba(255,245,200,0)');
-  cctx.fillStyle = glow; cctx.beginPath(); cctx.arc(eggX, eggY, 30, 0, Math.PI * 2); cctx.fill();
-  cctx.fillStyle = '#fff8e8';
-  cctx.beginPath(); cctx.ellipse(eggX, eggY, 13, 16, 0, 0, Math.PI * 2); cctx.fill();
-  comicFrame(cctx, w, h);
-}
-function sceneHatch(cctx, w, h) {
-  comicBg(cctx, w, h, MAPS[0].sky, MAPS[0].ground);
-  const gy = h - 26;
-  const eggX = w / 2 - 30, eggY = gy - 16;
-  cctx.fillStyle = '#fff8e8';
-  cctx.beginPath(); cctx.ellipse(eggX, eggY, 11, 14, 0, 0, Math.PI * 2); cctx.fill();
-  cctx.strokeStyle = '#c9b98a'; cctx.lineWidth = 1.5;
-  cctx.beginPath(); cctx.moveTo(eggX - 7, eggY - 9); cctx.lineTo(eggX + 1, eggY - 1); cctx.lineTo(eggX - 5, eggY + 6); cctx.stroke();
-  const skin = getSkin(data.selectedSkin);
-  drawBabyDinoShape(cctx, w / 2 - 14, gy - 46, 56, 46, skin, false, 0, 1);
-  comicFrame(cctx, w, h);
-}
-function sceneVictoryFlashback(mapIndex) {
-  return function (cctx, w, h) {
-    const map = MAPS[mapIndex];
-    comicBg(cctx, w, h, map.sky, map.ground);
-    const gy = h - 26;
-    const sz = questDinoSize();
-    const skin = getSkin(data.selectedSkin);
-    const isBaby = qAge < 20;
-    const dw = Math.max(60, sz.w * 1.7), dh = Math.max(50, sz.h * 1.7);
-    comicGroundShadow(cctx, w / 2, gy - 4, dw * 0.42, 7);
-    if (isBaby) {
-      drawBabyDinoShape(cctx, w / 2 - dw / 2, gy - dh, dw, dh, skin, false, 0, 1);
-    } else {
-      drawDinoShape(cctx, w / 2 - dw / 2, gy - dh, dw, dh, skin, false, 0, 1);
-    }
-    cctx.save();
-    cctx.globalAlpha = 0.45;
-    drawBossByMapId(cctx, map.id, w / 2 + dw * 0.42, gy - 6, 50, 44, map.bossColor, false);
-    cctx.restore();
-    const positions = [24, 76, w / 2, w - 76, w - 24];
-    MAPS.forEach((m, i) => {
-      const defeated = i <= mapIndex;
-      cctx.save();
-      cctx.globalAlpha = defeated ? 1 : 0.35;
-      drawCreatureByMapId(cctx, m.id, positions[i], 20, 22, 18, m.bossColor, false);
-      cctx.restore();
-      if (defeated) {
-        cctx.strokeStyle = '#7ed957'; cctx.lineWidth = 2;
-        cctx.beginPath();
-        cctx.moveTo(positions[i] - 8, 20); cctx.lineTo(positions[i] - 2, 27); cctx.lineTo(positions[i] + 9, 11);
-        cctx.stroke();
-      }
-    });
-    comicFrame(cctx, w, h);
-  };
-}
-
-/* ---- Komik penutup: dino purba bangkit menjadi naga setelah bos terakhir tumbang ---- */
-function sceneStandOnFallenBoss(mapIndex) {
-  return function (cctx, w, h) {
-    const map = MAPS[mapIndex];
-    comicBg(cctx, w, h, map.sky, map.ground);
-    comicDots(cctx, w, h, '#000', 0.12);
-    const gy = h - 26;
-    comicGroundShadow(cctx, w / 2, gy - 2, w * 0.34, 8);
-    // bos terakhir tumbang tergeletak di tanah
-    cctx.save();
-    cctx.translate(w / 2, gy - 16);
-    cctx.rotate(-1.35);
-    cctx.globalAlpha = 0.92;
-    drawBossByMapId(cctx, map.id, 0, 0, 62, 52, map.bossColor, false);
-    cctx.restore();
-    // dino berdiri gagah di atasnya
-    const skin = getSkin(data.selectedSkin);
-    const dw = 66, dh = 56;
-    drawDinoShape(cctx, w / 2 - dw / 2, gy - 40 - dh, dw, dh, skin, false, 0, 1);
-    comicSpeedLines(cctx, w, h, w / 2, gy - 56, 'rgba(255,215,107,0.55)');
-    comicImpactText(cctx, w, h, 'MENANG!!', w / 2, 22, 15, -0.05);
-    comicFrame(cctx, w, h);
-  };
-}
-function sceneDragonAwakening(cctx, w, h) {
-  comicBg(cctx, w, h, ['#241030', '#3a1a4a'], '#150a1c');
-  comicDots(cctx, w, h, '#000', 0.12);
-  const gy = h - 26;
-  const cx = w / 2, cy = gy - 40;
-  const glow = cctx.createRadialGradient(cx, cy, 4, cx, cy, w * 0.62);
-  glow.addColorStop(0, 'rgba(255,190,90,0.9)');
-  glow.addColorStop(0.55, 'rgba(210,90,220,0.35)');
-  glow.addColorStop(1, 'rgba(210,90,220,0)');
-  cctx.fillStyle = glow;
-  cctx.beginPath(); cctx.arc(cx, cy, w * 0.62, 0, Math.PI * 2); cctx.fill();
-  comicGroundShadow(cctx, cx, gy - 2, 34, 7);
-
-  const skin = getSkin(data.selectedSkin);
-  const dw = 72, dh = 60;
-  // sayap baru yang mulai tumbuh, transparan & bercahaya
-  cctx.save();
-  cctx.globalAlpha = 0.8;
-  cctx.fillStyle = 'rgba(150,60,190,0.7)';
-  cctx.beginPath();
-  cctx.moveTo(cx - dw * 0.05, gy - dh * 0.85);
-  cctx.quadraticCurveTo(cx - dw * 0.95, gy - dh * 1.35, cx - dw * 0.78, gy - dh * 0.4);
-  cctx.quadraticCurveTo(cx - dw * 0.5, gy - dh * 0.6, cx - dw * 0.05, gy - dh * 0.62);
-  cctx.closePath(); cctx.fill();
-  cctx.beginPath();
-  cctx.moveTo(cx + dw * 0.55, gy - dh * 0.85);
-  cctx.quadraticCurveTo(cx + dw * 1.45, gy - dh * 1.35, cx + dw * 1.28, gy - dh * 0.4);
-  cctx.quadraticCurveTo(cx + dw * 1.0, gy - dh * 0.6, cx + dw * 0.55, gy - dh * 0.62);
-  cctx.closePath(); cctx.fill();
-  cctx.strokeStyle = 'rgba(255,220,150,0.7)'; cctx.lineWidth = 1.2;
-  cctx.stroke();
-  cctx.restore();
-
-  drawDinoShape(cctx, cx - dw / 2, gy - dh, dw, dh, skin, false, 0, 1);
-
-  // tanduk besar melengkung yang baru tumbuh
-  cctx.save();
-  cctx.fillStyle = '#2a2a2a'; cctx.strokeStyle = '#0c0c0c'; cctx.lineWidth = 1;
-  cctx.beginPath();
-  cctx.moveTo(cx + dw * 0.26, gy - dh - 2);
-  cctx.quadraticCurveTo(cx + dw * 0.5, gy - dh - 26, cx + dw * 0.4, gy - dh - 34);
-  cctx.quadraticCurveTo(cx + dw * 0.34, gy - dh - 14, cx + dw * 0.2, gy - dh);
-  cctx.closePath(); cctx.fill(); cctx.stroke();
-  cctx.restore();
-
-  comicSpeedLines(cctx, w, h, cx, cy, 'rgba(255,215,107,0.6)');
-  comicImpactText(cctx, w, h, 'BERUBAH!!', w / 2, 22, 14, 0.05);
-  comicFrame(cctx, w, h);
-}
-function sceneDragonFireBreath(cctx, w, h) {
-  comicBg(cctx, w, h, ['#1a0e08', '#3a1a0c'], '#100704');
-  comicDots(cctx, w, h, '#000', 0.14);
-  const gy = h - 26;
-  const cx = w * 0.34, cy = gy - 36;
-  comicGroundShadow(cctx, cx, gy - 2, 40, 8);
-
-  const dragonSkin = { head: '#5a1414', body: '#8c2424', belly: '#ffb347', eye: '#ffe36b', horn: true, spikeStyle: 'flame', pattern: 'plain', tailStyle: 'spiked' };
-  // sayap naga terbentang lebar
-  cctx.save();
-  cctx.fillStyle = 'rgba(100,20,20,0.88)';
-  cctx.strokeStyle = 'rgba(20,5,5,0.8)'; cctx.lineWidth = 1.5;
-  cctx.beginPath();
-  cctx.moveTo(cx + 8, gy - 56);
-  cctx.quadraticCurveTo(cx + 68, gy - 96, cx + 56, gy - 16);
-  cctx.quadraticCurveTo(cx + 32, gy - 40, cx + 8, gy - 38);
-  cctx.closePath(); cctx.fill(); cctx.stroke();
-  cctx.restore();
-
-  drawDinoShape(cctx, cx - 36, gy - 64, 72, 64, dragonSkin, false, 0, 1);
-
-  // semburan api besar dari mulut
-  const fx = cx + 38, fy = gy - 44;
-  const fg = cctx.createLinearGradient(fx, fy, w, fy);
-  fg.addColorStop(0, 'rgba(255,255,225,0.95)');
-  fg.addColorStop(0.35, 'rgba(255,170,40,0.92)');
-  fg.addColorStop(0.7, 'rgba(230,70,20,0.8)');
-  fg.addColorStop(1, 'rgba(230,70,20,0)');
-  cctx.fillStyle = fg;
-  cctx.beginPath();
-  cctx.moveTo(fx, fy - 9);
-  cctx.quadraticCurveTo(w * 0.66, fy - 32, w, fy - 5);
-  cctx.quadraticCurveTo(w * 0.7, fy + 7, fx, fy + 9);
-  cctx.closePath(); cctx.fill();
-  for (let i = 0; i < 4; i++) {
-    cctx.beginPath();
-    cctx.fillStyle = i % 2 === 0 ? 'rgba(255,220,120,0.85)' : 'rgba(255,140,40,0.8)';
-    cctx.arc(fx + 20 + i * (w - fx) / 5, fy - 4 + Math.sin(i) * 8, 5 - i * 0.6, 0, Math.PI * 2);
-    cctx.fill();
-  }
-
-  comicImpactText(cctx, w, h, 'HOOAARR!!', w * 0.6, h * 0.26, 14, -0.05);
-  comicFrame(cctx, w, h);
-}
-function sceneDragonRoar(cctx, w, h) {
-  comicBg(cctx, w, h, ['#150a1c', '#2a1030'], '#0d0710');
-  comicDots(cctx, w, h, '#000', 0.14);
-  const gy = h - 26;
-  const cx = w / 2, cy = gy - 40;
-  cctx.save();
-  for (let i = 0; i < 3; i++) {
-    cctx.beginPath();
-    cctx.strokeStyle = `rgba(255,215,107,${0.5 - i * 0.14})`;
-    cctx.lineWidth = 3 - i * 0.6;
-    cctx.arc(cx, cy - 6, 30 + i * 22, 0, Math.PI * 2);
-    cctx.stroke();
-  }
-  cctx.restore();
-  comicGroundShadow(cctx, cx, gy - 2, 46, 9);
-
-  const dragonSkin = getSkin(6);
-  const dw = 84, dh = 68;
-  cctx.save();
-  cctx.fillStyle = 'rgba(180,120,20,0.85)';
-  cctx.strokeStyle = 'rgba(60,35,5,0.85)'; cctx.lineWidth = 1.5;
-  cctx.beginPath();
-  cctx.moveTo(cx - dw * 0.1, gy - dh * 0.9);
-  cctx.quadraticCurveTo(cx - dw * 1.1, gy - dh * 1.5, cx - dw * 0.9, gy - dh * 0.3);
-  cctx.quadraticCurveTo(cx - dw * 0.55, gy - dh * 0.55, cx - dw * 0.1, gy - dh * 0.6);
-  cctx.closePath(); cctx.fill(); cctx.stroke();
-  cctx.beginPath();
-  cctx.moveTo(cx + dw * 0.6, gy - dh * 0.9);
-  cctx.quadraticCurveTo(cx + dw * 1.6, gy - dh * 1.5, cx + dw * 1.4, gy - dh * 0.3);
-  cctx.quadraticCurveTo(cx + dw * 1.05, gy - dh * 0.55, cx + dw * 0.6, gy - dh * 0.6);
-  cctx.closePath(); cctx.fill(); cctx.stroke();
-  cctx.restore();
-
-  cctx.save();
-  cctx.translate(cx, gy - dh * 0.4);
-  cctx.rotate(-0.12);
-  cctx.translate(-cx, -(gy - dh * 0.4));
-  drawDinoShape(cctx, cx - dw / 2, gy - dh, dw, dh, dragonSkin, false, 0, 1);
-  cctx.restore();
-
-  comicSpeedLines(cctx, w, h, cx, cy - 10, 'rgba(255,215,107,0.7)');
-  comicImpactText(cctx, w, h, 'GRAOOOARR!!', cx, h * 0.2, 16, -0.04);
-  comicFrame(cctx, w, h);
-}
-function sceneDragonEvolved(cctx, w, h) {
-  comicBg(cctx, w, h, ['#1a0a2e', '#341454'], '#0d0518');
-  comicDots(cctx, w, h, '#000', 0.14);
-  const gy = h - 24;
-  const cx = w / 2, cy = gy - 46;
-
-  cctx.save();
-  for (let i = 0; i < 8; i++) {
-    const a = (Math.PI * 2 / 8) * i + 0.3;
-    const rx = cx + Math.cos(a) * (w * 0.38);
-    const ry = cy + Math.sin(a) * (h * 0.24);
-    cctx.save();
-    cctx.translate(rx, ry);
-    cctx.font = '12px serif';
-    cctx.textAlign = 'center'; cctx.textBaseline = 'middle';
-    cctx.globalAlpha = 0.8;
-    cctx.fillText('📜', 0, 0);
-    cctx.restore();
-  }
-  cctx.restore();
-
-  const glow = cctx.createRadialGradient(cx, cy, 6, cx, cy, w * 0.72);
-  glow.addColorStop(0, 'rgba(200,120,255,0.75)');
-  glow.addColorStop(0.6, 'rgba(120,40,180,0.3)');
-  glow.addColorStop(1, 'rgba(120,40,180,0)');
-  cctx.fillStyle = glow;
-  cctx.beginPath(); cctx.arc(cx, cy, w * 0.72, 0, Math.PI * 2); cctx.fill();
-  comicGroundShadow(cctx, cx, gy - 2, 56, 10);
-
-  // wujud naga yang berevolusi: lebih besar, warna ungu-emas, mata giok bercahaya
-  const evoSkin = { head: '#4a1560', body: '#6d219e', belly: '#ffd76b', eye: '#7fffd4', horn: true, hornStyle: 'twin', hornColor: '#ffd76b', spikeStyle: 'crown', pattern: 'stars', tailStyle: 'spiked' };
-  const dw = 102, dh = 82;
-  cctx.save();
-  cctx.fillStyle = 'rgba(120,40,180,0.88)';
-  cctx.strokeStyle = 'rgba(255,215,107,0.75)'; cctx.lineWidth = 1.8;
-  cctx.beginPath();
-  cctx.moveTo(cx - dw * 0.12, gy - dh * 0.95);
-  cctx.quadraticCurveTo(cx - dw * 1.3, gy - dh * 1.7, cx - dw * 1.05, gy - dh * 0.25);
-  cctx.quadraticCurveTo(cx - dw * 0.6, gy - dh * 0.55, cx - dw * 0.12, gy - dh * 0.62);
-  cctx.closePath(); cctx.fill(); cctx.stroke();
-  cctx.beginPath();
-  cctx.moveTo(cx + dw * 0.62, gy - dh * 0.95);
-  cctx.quadraticCurveTo(cx + dw * 1.8, gy - dh * 1.7, cx + dw * 1.55, gy - dh * 0.25);
-  cctx.quadraticCurveTo(cx + dw * 1.1, gy - dh * 0.55, cx + dw * 0.62, gy - dh * 0.62);
-  cctx.closePath(); cctx.fill(); cctx.stroke();
-  cctx.restore();
-
-  drawDinoShape(cctx, cx - dw / 2, gy - dh, dw, dh, evoSkin, false, 0, 1);
-
-  comicSpeedLines(cctx, w, h, cx, cy - 10, 'rgba(200,120,255,0.65)');
-  comicImpactText(cctx, w, h, 'EVOLUSI!!', cx, h * 0.16, 15, 0.05);
-  comicFrame(cctx, w, h);
-}
-function sceneComingSoonChapter2(cctx, w, h) {
-  cctx.clearRect(0, 0, w, h);
-  cctx.fillStyle = '#0a0a0a';
-  cctx.fillRect(0, 0, w, h);
-  comicDots(cctx, w, h, '#fff', 0.05);
-  cctx.save();
-  cctx.textAlign = 'center';
-  cctx.textBaseline = 'middle';
-  cctx.fillStyle = '#ffd76b';
-  cctx.font = 'italic 900 15px "Courier New", monospace';
-  cctx.fillText('CHAPTER 2', w / 2, h * 0.44);
-  cctx.fillStyle = '#fff';
-  cctx.font = 'bold 9px "Courier New", monospace';
-  cctx.fillText('COMING SOON', w / 2, h * 0.6);
-  cctx.restore();
-  cctx.strokeStyle = '#0c0c0c'; cctx.lineWidth = 7;
-  cctx.strokeRect(3.5, 3.5, w - 7, h - 7);
-  cctx.strokeStyle = 'rgba(255,215,107,0.4)'; cctx.lineWidth = 1.4;
-  cctx.strokeRect(7.5, 7.5, w - 15, h - 15);
-}
-
-function sceneComingSoonChapter3(cctx, w, h) {
-  cctx.clearRect(0, 0, w, h);
-  cctx.fillStyle = '#0a0a0a';
-  cctx.fillRect(0, 0, w, h);
-  comicDots(cctx, w, h, '#fff', 0.05);
-  cctx.save();
-  cctx.textAlign = 'center';
-  cctx.textBaseline = 'middle';
-  cctx.fillStyle = '#c9a8ff';
-  cctx.font = 'italic 900 15px "Courier New", monospace';
-  cctx.fillText('CHAPTER 3', w / 2, h * 0.44);
-  cctx.fillStyle = '#fff';
-  cctx.font = 'bold 9px "Courier New", monospace';
-  cctx.fillText('COMING SOON', w / 2, h * 0.6);
-  cctx.restore();
-  cctx.strokeStyle = '#0c0c0c'; cctx.lineWidth = 7;
-  cctx.strokeRect(3.5, 3.5, w - 7, h - 7);
-  cctx.strokeStyle = 'rgba(200,160,255,0.4)'; cctx.lineWidth = 1.4;
-  cctx.strokeRect(7.5, 7.5, w - 15, h - 15);
-}
-
-function startQuest(forceNew) {
-  mode = 'quest';
-  inChapter2 = false;
-  qAgeLabel.textContent = '🦖 UMUR';
-  attackBtn.textContent = 'SERANG';
-  const qp = data.questProgress;
-  const canResume = !forceNew && qp && qp.mapIndex > 0 && qp.mapIndex < MAPS.length;
-  qAge = canResume ? MAPS[qp.mapIndex].ageStart : 0;
-  qMapIndex = canResume ? qp.mapIndex : 0;
-  qLives = 3;
-  qInvincible = 0;
-  qSpeed = 5;
-  qFrame = 0;
-  qEntities = [];
-  qEntityTimer = 0;
-  qNextEntityGap = 80;
-  // Saat melanjutkan, skill yang seharusnya sudah didapat di umur ini langsung
-  // dipulihkan (tanpa notifikasi "skill baru") supaya progres terasa utuh.
-  qUnlockedSkills = canResume ? SKILLS.filter(sk => qAge >= sk.age) : [];
-  qBossActive = false;
-  qBoss = null;
-  qBossDefeatedForMap = {};
-  qAttackCooldown = 0;
-  qPopups = [];
-  qGroundOffset = 0;
-  qClouds = [];
-  for (let i = 0; i < 4; i++) qClouds.push({ x: Math.random() * (VW || 400), y: 20 + Math.random() * 100, w: 34 + Math.random() * 30 });
-  qBloodParticles = [];
-  qInitDecor();
-  const sz = questDinoSize();
-  dino.w = sz.w; dino.h = sz.h;
-  resetDino();
-  attackBtn.classList.remove('ready');
-
-  if (canResume) {
-    // Melanjutkan dari checkpoint tersimpan: langsung tampilkan pengenalan wilayah
-    // yang sedang dijalani, tanpa mengulang cerita asal-usul dari awal.
-    const map = MAPS[qMapIndex];
-    queueComicPage(map.introTitle, [
-      panel((c, w, h) => drawIconPanel(c, w, h, map.introIcon, 'default'), map.name)
-    ], 'Perjalanan dilanjutkan...\n\n' + map.introText, () => {
-      showScreen('playing');
-      updateQuestHud();
-    }, 'LANJUTKAN');
-    showScreen('playing');
-    playNextStory();
-    return;
-  }
-
-  qClearCheckpoint();
-  // Seluruh kisah asal-usul ditampilkan sebagai SATU halaman komik utuh (4 panel
-  // sekaligus, seperti halaman komik cetak asli) — cukup satu tombol untuk mulai.
-  queueComicPage('KISAH SANG INDUK', [
-    panel(sceneParentProud, 'Induk yang perkasa, penjaga Hutan Purba.'),
-    panel(sceneAmbush, 'Dikepung lima penguasa dunia di malam kelam.'),
-    panel(sceneFallen, 'Pengorbanan terakhir: sebutir telur diselamatkan.'),
-    panel(sceneHatch, 'Kehidupan baru, membawa dendam yang membara.')
-  ], 'Jauh di jantung Hutan Purba, hidup seekor dino agung, sang penjaga yang disegani.\nSuatu malam kelam, lima penguasa dari seluruh penjuru dunia datang bersama, mengepungnya tanpa ampun.\nDi detik terakhir, sang induk menyembunyikan sebutir telur agar tetap selamat.\nWaktu berlalu... telur itu menetas. Seekor dino kecil terbangun sendirian, membawa dendam yang membara di dalam hatinya.',
-  () => {
-    showScreen('playing');
-    updateQuestHud();
-  }, 'MULAI PERJALANAN');
-  showScreen('playing');
-  playNextStory();
-}
-
-function qSpawnEntity() {
-  const map = MAPS[qMapIndex];
-  const isRock = Math.random() < 0.32;
-  if (isRock) {
-    qEntities.push({ type: 'rock', x: VW + 30, w: 20, h: 30, y: GROUND_Y - 30 });
-  } else {
-    const hp = 1 + Math.floor(qAge / 30);
-    qEntities.push({
-      type: 'enemy', mapId: map.id, x: VW + 30,
-      w: 34, h: 28, y: GROUND_Y - 28, hp, maxHp: hp, hitFlash: 0, walkPhase: Math.random() * 10
-    });
-  }
-}
-
-function qTriggerBoss() {
-  const map = MAPS[qMapIndex];
-  qEntities = [];
-  qBossActive = true;
-  qBloodParticles = [];
-  qBoss = {
-    name: map.bossName, mapId: map.id,
-    hp: 5 + qMapIndex * 2, maxHp: 5 + qMapIndex * 2,
-    x: VW + 80, y: GROUND_Y - 68, w: 78, h: 78,
-    attackTimer: 0, warnUntil: 0, strikeUntil: 0, hitFlash: 0,
-    arrived: false, bobPhase: 0, bloodRatio: 0
-  };
-  bossNameEl.textContent = map.bossName.toUpperCase();
-  bossBarWrap.style.display = 'block';
-  queueStory('⚔️', 'BOS MUNCUL!', `${map.bossName} menghadang jalan sang dino!\nKalahkan untuk melanjutkan perjalanan.`, () => {}, 'danger');
-  playNextStory();
-}
-
-function qDefeatBoss() {
-  const map = MAPS[qMapIndex];
-  const defeatedIdx = qMapIndex;
-  qBossActive = false;
-  qBossDefeatedForMap[map.id] = true;
-  bossBarWrap.style.display = 'none';
-  qBoss = null;
-  if (qMapIndex >= MAPS.length - 1) {
-    qSaveCheckpoint(qMapIndex, true);
-    // Halaman kemenangan: flashback perjalanan + bos terakhir tumbang
-    queueComicPage('DENDAM TERBALASKAN', [
-      panel(sceneVictoryFlashback(defeatedIdx), map.bossName + ' tumbang!'),
-      panel(sceneStandOnFallenBoss(defeatedIdx), 'Dino berdiri di atas bos terakhir.')
-    ], map.victoryText + '\n\nKelima penguasa yang merenggut induknya telah tumbang, satu demi satu.\nSang dino kini berdiri sebagai penjaga sejati, mewarisi kekuatan induknya.', () => {}, 'LANJUT');
-    playNextStory();
-    // Halaman kebangkitan naga (komik pembuka Chapter 2) — akan tampil otomatis
-    // setelah halaman di atas ditutup, lewat rantai tombol LANJUT.
-    playChapter2Intro();
-  } else {
-    // Gabung kemenangan + perkenalan wilayah baru jadi SATU halaman komik
-    queueComicPage('SATU DARI LIMA TUMBANG', [
-      panel(sceneVictoryFlashback(defeatedIdx), map.bossName + ' tumbang!'),
-      panel((c, w, h) => drawIconPanel(c, w, h, MAPS[qMapIndex + 1].introIcon, 'default'), MAPS[qMapIndex + 1].name)
-    ], map.victoryText + '\n\n' + MAPS[qMapIndex + 1].introText, () => {
-      qMapIndex++;
-      qBloodParticles = [];
-      qInitDecor();
-      updateQuestHud();
-      qSaveCheckpoint(qMapIndex, false);
-    }, 'LANJUTKAN');
-    playNextStory();
-  }
-}
-
-function qAttack() {
-  if (state !== 'playing' || mode !== 'quest' || qPaused) return;
-  if (inChapter2) { q2FireBreath(); return; }
-  if (!qUnlockedSkills.length || qAttackCooldown > 0) return;
-  qAttackCooldown = 22;
-  qAttackFlash = 10;
-  const dmg = currentSkillDamage();
-  const range = 60;
-  let hitSomething = false;
-  if (qBossActive && qBoss) {
-    const dist = qBoss.x - (dino.x + dino.w);
-    if (dist < range + 30) {
-      qBoss.hp -= dmg;
-      qBoss.hitFlash = 8;
-      hitSomething = true;
-      spawnBossBlood(qBoss.x, qBoss.y - qBoss.h * 0.15, 10, false);
-      qBoss.bloodRatio = Math.min(1, (qBoss.maxHp - Math.max(0, qBoss.hp)) / qBoss.maxHp);
-      if (qBoss.hp <= 0) {
-        spawnBossBlood(qBoss.x, qBoss.y - qBoss.h * 0.15, 34, true);
-        qDefeatBoss();
-      }
-    }
-  } else {
-    for (const e of qEntities) {
-      if (e.type !== 'enemy') continue;
-      const dist = e.x - (dino.x + dino.w);
-      if (dist >= -10 && dist < range) {
-        e.hp -= dmg;
-        e.hitFlash = 8;
-        hitSomething = true;
-        if (e.hp <= 0) {
-          e.dead = true;
-          qPopups.push({ x: e.x, y: e.y - 6, text: '+', color: '#7ed957', life: 30 });
-        }
-        break;
-      }
-    }
-  }
-  if (!hitSomething) qPopups.push({ x: dino.x + dino.w + 20, y: dino.y - 10, text: '×', color: '#999', life: 20 });
-}
-attackBtn.addEventListener('touchstart', (e) => { e.preventDefault(); qAttack(); }, { passive: false });
-attackBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); qAttack(); });
-
-function questUpdate() {
-  qFrame++;
-  const size = questDinoSize();
-  dino.w = size.w; dino.h = size.h;
-
-  if (qPaused) { return; }
-
+  // gerak dino via joystick analog
+  dino.x += castle.analogX * 3.4;
+  dino.x = Math.max(8, Math.min(VW - dino.w - 8, dino.x));
+  if (castle.analogX > 0.05) castle.facing = 1;
+  else if (castle.analogX < -0.05) castle.facing = -1;
   if (dino.jumping) {
     dino.vy += GRAVITY;
     dino.y += dino.vy;
     if (dino.y >= GROUND_Y - dino.h) { dino.y = GROUND_Y - dino.h; dino.jumping = false; dino.vy = 0; }
-  } else {
-    dino.y = GROUND_Y - dino.h;
   }
 
-  if (qInvincible > 0) qInvincible--;
-  if (qAttackCooldown > 0) qAttackCooldown--;
-  if (qAttackFlash > 0) qAttackFlash--;
-
-  const map = MAPS[qMapIndex];
-
-  if (!qBossActive) {
-    qAge += 0.018;
-    if (qAge >= map.ageEnd - 0.5 && !qBossDefeatedForMap[map.id] && !qBossActive) {
-      qAge = map.ageEnd - 0.5;
-      qTriggerBoss();
+  // spawn musuh biasa (non-boss floor, atau floor 4 sebelum raja muncul)
+  if (!f.isBossFloor && !castle.bossActive) {
+    castle.spawnTimer++;
+    if (castle.spawnTimer > castle.nextSpawnGap) {
+      castleSpawnEnemy();
+      castle.spawnTimer = 0;
+      castle.nextSpawnGap = f.gap[0] + Math.random() * (f.gap[1] - f.gap[0]);
     }
-    SKILLS.forEach(sk => {
-      if (qAge >= sk.age && !qUnlockedSkills.includes(sk)) {
-        qUnlockedSkills.push(sk);
-        attackBtn.classList.add('ready');
-        showToast(`${sk.icon} Skill baru terbuka: ${sk.name}!`);
-      }
-    });
+  }
+  // spawn mantra
+  castle.mantraTimer++;
+  if (castle.mantraTimer > castle.nextMantraGap) {
+    castleSpawnMantra();
+    castle.mantraTimer = 0;
+    castle.nextMantraGap = 300 + Math.random() * 220;
+  }
 
-    qEntityTimer++;
-    if (qEntityTimer > qNextEntityGap) {
-      qSpawnEntity();
-      qEntityTimer = 0;
-      qNextEntityGap = 70 + Math.random() * 50 - Math.min(qSpeed * 2, 22);
+  // update musuh biasa
+  const cx = dino.x + dino.w / 2;
+  castle.enemies.forEach(e => {
+    if (e.hitFlash > 0) e.hitFlash--;
+    if (e.atkCooldown > 0) e.atkCooldown--;
+    const ecx = e.x + e.w / 2;
+    if (Math.abs(ecx - cx) > 22) {
+      e.x += ecx < cx ? e.speed : -e.speed;
+      e.walkFrame += 0.15;
+    } else if (e.atkCooldown <= 0) {
+      castleTakeDamage(e.dmg);
+      e.atkCooldown = 70;
     }
-    qEntities.forEach(e => { e.x -= qSpeed; if (e.type === 'enemy') e.walkPhase++; });
-    qEntities = qEntities.filter(e => !e.dead && e.x + e.w > -30);
+  });
+  const deadEnemies = castle.enemies.filter(e => e.hp <= 0);
+  if (deadEnemies.length) {
+    deadEnemies.forEach(e => { castle.score += CASTLE_ENEMY_DEFS[e.type].scoreOnKill; AudioMgr.sfx('coin'); });
+    castle.enemies = castle.enemies.filter(e => e.hp > 0);
+  }
 
-    for (const e of qEntities) {
-      if (qInvincible > 0) break;
-      if (rectOverlap(dino.x, dino.y, dino.w, dino.h, e.x, e.y, e.w, e.h, 6)) {
-        e.dead = true;
-        qLoseLife();
-        break;
-      }
+  // update boss
+  if (castle.boss) {
+    const b = castle.boss;
+    if (b.hitFlash > 0) b.hitFlash--;
+    if (b.atkCooldown > 0) b.atkCooldown--;
+    const bcx = b.x + b.w / 2;
+    if (Math.abs(bcx - cx) > 30) {
+      b.x += bcx < cx ? b.speed : -b.speed;
+      b.walkFrame += 0.1;
+    } else if (b.atkCooldown <= 0) {
+      castleTakeDamage(b.dmg);
+      b.atkCooldown = 85;
     }
-    qSpeed = Math.min(5 + qAge / 25, 9);
-  } else if (qBoss) {
-    const targetX = dino.x + dino.w + 55;
-    if (!qBoss.arrived) {
-      qBoss.x -= Math.min(4.5, qBoss.x - targetX);
-      if (qBoss.x <= targetX) { qBoss.x = targetX; qBoss.arrived = true; qBoss.attackTimer = 0; }
-    } else {
-      qBoss.attackTimer++;
-      if (qBoss.attackTimer > 130 && qBoss.warnUntil === 0 && qBoss.strikeUntil === 0) {
-        qBoss.warnUntil = qFrame + 40;
-      }
-      if (qBoss.warnUntil > 0 && qFrame >= qBoss.warnUntil) {
-        qBoss.warnUntil = 0;
-        qBoss.strikeUntil = qFrame + 16;
-      }
-      if (qBoss.strikeUntil > 0) {
-        if (qFrame < qBoss.strikeUntil) {
-          if (!dino.jumping && qInvincible <= 0) { qLoseLife(); qBoss.strikeUntil = 0; qBoss.attackTimer = 0; }
+    castleUpdateBossBar();
+    if (b.hp <= 0) {
+      AudioMgr.sfx('unlock');
+      if (f.isBossFloor) { castleAdvanceFloor(); }
+      else { castleVictory(); }
+    }
+  }
+
+  // trigger Raja Vampir di lantai 4
+  if (castle.floor === 4 && !castle.bossActive && castle.score >= f.kingTarget) {
+    castle.enemies = [];
+    castleSpawnBoss('vampireKing');
+  }
+
+  // pickup mantra
+  castle.mantras.forEach(m => { m.bob += 0.08; });
+  castle.mantras = castle.mantras.filter(m => {
+    const dx = (m.x) - cx, dy = (m.y) - (dino.y + dino.h / 2);
+    if (Math.sqrt(dx * dx + dy * dy) < 26) {
+      if (m.type === 'hp') {
+        castle.maxHp += 20;
+        castle.hp = Math.min(castle.maxHp, castle.hp + 45);
+        castleToast('❤ Mantra Nyawa! Max HP +20');
+      } else {
+        const idx = castle.skillsUnlocked.indexOf(false);
+        if (idx !== -1) {
+          castle.skillsUnlocked[idx] = true;
+          castleUpdateSkillButtons();
+          castleToast(`✨ Mantra Skill! ${CASTLE_SKILLS[idx].name} terbuka!`);
         } else {
-          qBoss.strikeUntil = 0;
-          qBoss.attackTimer = 0;
+          castle.maxHp += 10; castle.hp = Math.min(castle.maxHp, castle.hp + 20);
+          castleToast('❤ Mantra Nyawa! Max HP +10');
         }
       }
+      data.castleMantraCount = (data.castleMantraCount || 0) + 1;
+      saveData();
+      AudioMgr.sfx('unlock');
+      return false;
     }
-    qBoss.bobPhase += 0.06;
-    if (qBoss.hitFlash > 0) qBoss.hitFlash--;
-    bossBarFill.style.width = Math.max(0, (qBoss.hp / qBoss.maxHp) * 100) + '%';
-  }
-
-  qGroundOffset += qSpeed;
-  qClouds.forEach(c => { c.x -= qSpeed * 0.3; if (c.x < -60) { c.x = VW + Math.random() * 100; c.y = 20 + Math.random() * (GROUND_Y * 0.3); } });
-  qUpdateDecor();
-  updateBossBlood();
-
-  qPopups.forEach(p => { p.y -= 0.6; p.life--; });
-  qPopups = qPopups.filter(p => p.life > 0);
-
-  updateQuestHud();
-}
-
-function qLoseLife() {
-  if (qInvincible > 0) return;
-  qLives--;
-  qInvincible = 90;
-  AudioMgr.sfx('hit');
-  flashRed();
-  triggerShake();
-  if (qLives <= 0) qEndGame();
-}
-
-function qEndGame() {
-  AudioMgr.sfx('gameover');
-  document.getElementById('goStatsNormal').style.display = 'none';
-  document.getElementById('goStatsQuest').style.display = '';
-  document.getElementById('goTitle').textContent = 'PERJALANAN TERHENTI';
-  document.getElementById('goAge').textContent = inChapter2 ? (q2MantraRun + ' mantra') : Math.floor(qAge);
-  document.getElementById('goMap').textContent = inChapter2 ? 'Puncak Langit' : MAPS[qMapIndex].name;
-  showScreen('gameover');
-}
-
-function updateQuestHud() {
-  qAgeVal.textContent = Math.floor(qAge);
-  qMapNameEl.textContent = MAPS[qMapIndex].name;
-  qLivesEl.innerHTML = '❤'.repeat(Math.max(qLives, 0)) + '<span style="opacity:0.25">' + '❤'.repeat(Math.max(3 - qLives, 0)) + '</span>';
-}
-
-/* ===================== CHAPTER 2: NAGA TERBANG =====================
-   Mode berbeda dari Chapter 1: dino (kini naga) terbang bebas naik-turun,
-   menghindari rintangan badai, dan mengumpulkan mantra kuno di udara.
-   Skin Naga Emas otomatis dipakai selama di Chapter 2. */
-function playChapter2Intro() {
-  data.chapter2IntroSeen = true;
-  saveData();
-  queueComicPage('BAB 2: KEBANGKITAN SANG NAGA', [
-    panel(sceneDragonAwakening, 'Berdiri di atas raja terakhir, tubuhnya perlahan berubah...'),
-    panel(sceneDragonFireBreath, 'Sayap dan tanduk raksasa tumbuh sempurna!'),
-    panel(sceneDragonRoar, 'Sang naga mengaung ke angkasa!')
-  ], 'Berdiri gagah di atas tubuh sang raja terakhir yang telah tumbang, tubuh sang dino tiba-tiba bergetar hebat.\nCahaya menyelimuti tubuhnya perlahan-lahan — tanduk besar mencuat, dan sepasang sayap raksasa merekah dari punggungnya.\n\nDalam sekejap, sang dino purba telah berubah wujud sepenuhnya menjadi seekor naga sejati, memiliki kekuatan menyemburkan api yang dahsyat. Ia mendongak dan mengaung keras ke angkasa, menandai awal babak baru.\n\n🎁 HADIAH TERBUKA: Skin Naga Emas!\n\nKini sang naga muda harus terbang tinggi ke langit, mencari mantra-mantra kuno yang tersembunyi untuk memperkuat evolusinya menjadi naga sejati seutuhnya...', () => {
-    startChapter2();
-  }, 'TERBANG!');
-  // Kalau belum ada komik lain yang sedang tampil, tampilkan langsung.
-  // Kalau sedang ada (dipanggil tepat setelah halaman kemenangan bos), biarkan
-  // rantai tombol LANJUT yang menampilkannya secara otomatis.
-  if (!storyOverlay.classList.contains('active')) playNextStory();
-}
-function startChapter2() {
-  mode = 'quest';
-  inChapter2 = true;
-  qLives = 3;
-  qInvincible = 0;
-  q2MantraRun = 0;
-  q2Timer = 0;
-  q2NextGap = 90;
-  q2Entities = [];
-  q2Frame = 0;
-  q2FireCooldown = 0;
-  q2FireFlash = 0;
-  q2Speed = 4.5;
-  q2Clouds = [];
-  q2Weather = 'calm';
-  q2WeatherTimer = 0;
-  q2Lightnings = [];
-  const cw = VW || 400, ch = VH || 700;
-  for (let i = 0; i < 5; i++) q2Clouds.push({ x: Math.random() * cw, y: 20 + Math.random() * (ch * 0.75), w: 40 + Math.random() * 40 });
-  dino.w = 56; dino.h = 44;
-  q2Y = ch * 0.45;
-  q2Vy = 0;
-  qAgeLabel.textContent = '📜 MANTRA';
-  qMapNameEl.textContent = 'Puncak Langit';
-  attackBtn.textContent = '🔥 API';
-  q2UpdateHud();
-  showScreen('playing');
-}
-function q2FireBreath() {
-  if (q2FireCooldown > 0) return;
-  q2FireCooldown = 26;
-  q2FireFlash = 12;
-  const range = 130;
-  let hit = false;
-  for (const e of q2Entities) {
-    if (e.dead || e.type !== 'hazard') continue;
-    const dist = e.x - (dino.x + dino.w);
-    if (dist >= -20 && dist < range && Math.abs((e.y + e.h / 2) - (q2Y + dino.h / 2)) < 70) {
-      e.dead = true;
-      hit = true;
-      qPopups.push({ x: e.x, y: e.y, text: '🔥', color: '#ff8a3c', life: 30 });
-    }
-  }
-  // Counter petir: semburan api bisa membatalkan sambaran yang masih fase peringatan & dekat
-  for (const l of q2Lightnings) {
-    if (l.state === 'warn' && Math.abs(l.x - (dino.x + dino.w / 2)) < range) {
-      l.state = 'fizzle';
-      l.timer = 16;
-      hit = true;
-      qPopups.push({ x: l.x, y: q2Y, text: 'PETIR DIBATALKAN!', color: '#ff8a3c', life: 34 });
-    }
-  }
-  if (!hit) qPopups.push({ x: dino.x + dino.w + 30, y: q2Y + dino.h / 2, text: '×', color: '#999', life: 20 });
-}
-function q2SpawnEntity() {
-  const w = VW || 400, h = VH || 700;
-  const y = 40 + Math.random() * Math.max(80, h - 160);
-  if (Math.random() < 0.34) {
-    q2Entities.push({ type: 'mantra', x: w + 30, y, w: 26, h: 26, spin: Math.random() * 10 });
-    return;
-  }
-  if (q2Weather === 'storm' && Math.random() < 0.7) {
-    // Badai: tornado besar yang menerjang naik-turun
-    q2Entities.push({ type: 'hazard', kind: 'tornado', x: w + 40, y, w: 52, h: 88, baseY: y, phase: Math.random() * Math.PI * 2 });
-  } else {
-    q2Entities.push({ type: 'hazard', kind: 'cloud', x: w + 30, y, w: 40, h: 34 });
-  }
-}
-function q2SpawnLightning() {
-  const w = VW || 400, ch = VH || 700;
-  const bandH = 120 + Math.random() * 50;
-  const bandY = 20 + Math.random() * Math.max(40, ch - bandH - 60);
-  q2Lightnings.push({ x: 50 + Math.random() * (w - 100), timer: 48, state: 'warn', bandY, bandH });
-}
-function q2Update() {
-  qFrame++;
-  q2Frame++;
-  if (qPaused) return;
-  if (qInvincible > 0) qInvincible--;
-  if (q2FireCooldown > 0) q2FireCooldown--;
-  if (q2FireFlash > 0) q2FireFlash--;
-
-  const THRUST = -0.55, GRAV2 = 0.32;
-  q2Vy += q2Thrust ? THRUST : GRAV2;
-  q2Vy = Math.max(-7, Math.min(6, q2Vy));
-  q2Y += q2Vy;
-  const ch = VH || 700;
-  const topBound = 20, botBound = ch - dino.h - 40;
-  if (q2Y < topBound) { q2Y = topBound; q2Vy = 0; }
-  if (q2Y > botBound) { q2Y = botBound; q2Vy = 0; }
-  dino.y = q2Y;
-  dino.jumping = true;
-
-  // Siklus cuaca: berganti tiap ~8 detik antara cerah, badai tornado, badai petir
-  q2WeatherTimer++;
-  if (q2WeatherTimer > 480) {
-    q2WeatherTimer = 0;
-    const opts = ['calm', 'storm', 'thunder'].filter(w2 => w2 !== q2Weather);
-    q2Weather = opts[Math.floor(Math.random() * opts.length)];
-    const msg = q2Weather === 'storm' ? '🌪️ BADAI TORNADO MENERJANG!' : q2Weather === 'thunder' ? '⚡ PETIR MENYAMBAR!' : '☀️ LANGIT CERAH';
-    qPopups.push({ x: dino.x + 70, y: q2Y - 24, text: msg, color: q2Weather === 'thunder' ? '#ffe36b' : '#fff', life: 60 });
-  }
-  if (q2Weather === 'thunder' && q2Lightnings.length < 3 && Math.random() < 0.035) {
-    q2SpawnLightning();
-  }
-
-  q2Timer++;
-  if (q2Timer > q2NextGap) {
-    q2SpawnEntity();
-    q2Timer = 0;
-    q2NextGap = 55 + Math.random() * 40;
-  }
-  q2Entities.forEach(e => {
-    e.x -= q2Speed;
-    if (e.kind === 'tornado') {
-      e.phase += 0.09;
-      e.y = e.baseY + Math.sin(e.phase) * 60;
-    }
+    return true;
   });
-  q2Entities = q2Entities.filter(e => !e.dead && e.x + (e.w || 30) > -40);
 
-  for (const e of q2Entities) {
-    if (e.dead) continue;
-    if (e.type === 'mantra') {
-      if (rectOverlap(dino.x, q2Y, dino.w, dino.h, e.x, e.y, e.w, e.h, 8)) {
-        e.dead = true;
-        q2MantraRun++;
-        data.mantraCount++;
-        saveData();
-        qPopups.push({ x: e.x, y: e.y - 6, text: '+1 MANTRA', color: '#c9a8ff', life: 34 });
-        if (q2MantraRun >= Q2_TARGET) { q2CompleteStage(); return; }
-      }
-    } else if (e.type === 'hazard') {
-      if (qInvincible <= 0 && rectOverlap(dino.x, q2Y, dino.w, dino.h, e.x, e.y, e.w, e.h, 8)) {
-        e.dead = true;
-        qLoseLife();
-      }
-    }
+  // naik lantai kalau skor target tercapai (bukan boss floor, bukan lagi lawan raja)
+  if (!f.isBossFloor && !castle.bossActive && castle.score >= f.target) {
+    castleAdvanceFloor();
   }
 
-  // Petir: telegraph (garis peringatan pada sebagian ketinggian) lalu menyambar.
-  // Naga bisa menghindar dengan terbang keluar dari band ketinggiannya,
-  // atau membatalkannya dengan semburan api saat masih fase peringatan.
-  q2Lightnings.forEach(l => {
-    l.timer--;
-    if (l.state === 'warn' && l.timer <= 0) { l.state = 'strike'; l.timer = 10; }
-  });
-  for (const l of q2Lightnings) {
-    if (l.state === 'strike' && l.timer === 10 && qInvincible <= 0) {
-      const dinoInBand = q2Y + dino.h > l.bandY && q2Y < l.bandY + l.bandH;
-      if (dinoInBand && dino.x + dino.w > l.x - 22 && dino.x < l.x + 22) {
-        qLoseLife();
-      }
-    }
-  }
-  q2Lightnings = q2Lightnings.filter(l => !((l.state === 'strike' || l.state === 'fizzle') && l.timer <= 0));
-
-  const cw = VW || 400;
-  q2Clouds.forEach(c => { c.x -= q2Speed * 0.4; if (c.x < -80) { c.x = cw + Math.random() * 100; c.y = 20 + Math.random() * (ch * 0.75); } });
-
-  qPopups.forEach(p => { p.y -= 0.6; p.life--; });
-  qPopups = qPopups.filter(p => p.life > 0);
-
-  q2UpdateHud();
+  castleUpdateHpBar();
+  castleUpdateProgress();
 }
-function q2UpdateHud() {
-  qAgeVal.textContent = q2MantraRun + '/' + Q2_TARGET;
-  qLivesEl.innerHTML = '❤'.repeat(Math.max(qLives, 0)) + '<span style="opacity:0.25">' + '❤'.repeat(Math.max(3 - qLives, 0)) + '</span>';
-}
-function q2CompleteStage() {
-  const bonusCoins = 150;
-  data.coins += bonusCoins;
-  data.chapter2StageDone = true;
-  saveData();
-  queueComicPage('EVOLUSI NAGA MENINGKAT', [
-    panel(sceneDragonEvolved, 'Wujud sang naga berevolusi — lebih besar, warnanya berubah berkilau keunguan!')
-  ], `Sang naga muda telah mengumpulkan ${Q2_TARGET} mantra kuno dari langit Puncak Langit!\nKekuatan mantra-mantra itu beresonansi dengan tubuhnya — ukurannya membesar, sisiknya berubah warna berkilau ungu-keemasan, dan tanduknya kini melengkung lebih tajam.\n\n🎁 +${bonusCoins} Koin!`, () => {}, 'LANJUT');
-  playNextStory();
-  queueComicPage('BERSAMBUNG...', [
-    panel(sceneComingSoonChapter3, null)
-  ], 'Wilayah langit selanjutnya masih diselimuti kabut misteri...\nNantikan kelanjutan kisah sang naga di Chapter 3!', () => {
-    showScreen('menu');
-  }, 'KEMBALI');
-}
-function q2DrawBackground() {
-  const cw = VW, ch = VH;
-  const g = ctx.createLinearGradient(0, 0, 0, ch);
-  if (q2Weather === 'storm') {
-    g.addColorStop(0, '#2b2f3d'); g.addColorStop(0.55, '#4a4f63'); g.addColorStop(1, '#8b8fa3');
-  } else if (q2Weather === 'thunder') {
-    g.addColorStop(0, '#15172a'); g.addColorStop(0.55, '#2c2a49'); g.addColorStop(1, '#4a4568');
-  } else {
-    g.addColorStop(0, '#2a3d6b'); g.addColorStop(0.55, '#5a6fa8'); g.addColorStop(1, '#a7b8dd');
-  }
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, cw, ch);
-  ctx.fillStyle = 'rgba(40,50,90,0.5)';
-  ctx.beginPath();
-  ctx.moveTo(0, ch);
-  for (let x = 0; x <= cw; x += 40) {
-    ctx.lineTo(x, ch - 40 - Math.sin(x * 0.01) * 20);
-  }
-  ctx.lineTo(cw, ch);
-  ctx.closePath();
+function castleDrawEnemy(e) {
+  const def = CASTLE_ENEMY_DEFS[e.type];
+  ctx.save();
+  ctx.translate(e.x + e.w / 2, e.y + e.h);
+  const bob = Math.sin(e.walkFrame) * 2;
+  ctx.translate(0, bob);
+  ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : def.dark;
+  ctx.beginPath(); ctx.ellipse(0, 2, e.w * 0.42, e.h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = e.hitFlash > 0 ? '#ffdddd' : def.color;
+  roundRectPath(ctx, -e.w / 2, -e.h, e.w, e.h * 0.72, e.w * 0.22);
   ctx.fill();
-}
-function q2DrawClouds() {
-  ctx.save();
-  ctx.fillStyle = 'rgba(255,255,255,0.55)';
-  q2Clouds.forEach(c => {
-    ctx.beginPath();
-    ctx.ellipse(c.x, c.y, c.w * 0.5, c.w * 0.28, 0, 0, Math.PI * 2);
-    ctx.fill();
-  });
-  ctx.restore();
-}
-function q2DrawMantra(e) {
-  ctx.save();
-  ctx.translate(e.x + e.w / 2, e.y + e.h / 2 + Math.sin((q2Frame + e.spin) * 0.08) * 4);
-  ctx.font = 'bold 22px serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.shadowColor = 'rgba(200,150,255,0.85)'; ctx.shadowBlur = 12;
-  ctx.fillText('📜', 0, 0);
-  ctx.restore();
-}
-function q2DrawHazard(e) {
-  if (e.kind === 'tornado') { q2DrawTornado(e); return; }
-  ctx.save();
-  ctx.translate(e.x + e.w / 2, e.y + e.h / 2);
-  ctx.font = '26px serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('🌩️', 0, 0);
-  ctx.restore();
-}
-function q2DrawTornado(e) {
-  ctx.save();
-  ctx.translate(e.x + e.w / 2, e.y + e.h / 2);
-  ctx.rotate(Math.sin(e.phase * 2) * 0.06);
-  for (let i = 0; i < 5; i++) {
-    const t = i / 4;
-    const rw = e.w * (0.5 + t * 0.55);
-    const ry = -e.h / 2 + t * e.h;
-    ctx.beginPath();
-    ctx.ellipse(0, ry, rw / 2, 9, 0, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(150,160,180,${0.3 + t * 0.2})`;
-    ctx.fill();
-  }
-  ctx.font = '22px serif';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('🌪️', 0, 4);
-  ctx.restore();
-}
-function q2DrawLightnings() {
-  q2Lightnings.forEach(l => {
-    if (l.state === 'warn') {
-      ctx.save();
-      ctx.globalAlpha = 0.45 + 0.3 * Math.sin(q2Frame * 0.5);
-      ctx.strokeStyle = '#ffe36b';
-      ctx.lineWidth = 3;
-      ctx.setLineDash([6, 6]);
-      ctx.beginPath();
-      ctx.moveTo(l.x, l.bandY);
-      ctx.lineTo(l.x, l.bandY + l.bandH);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.font = '16px serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('⚠️', l.x, Math.max(16, l.bandY - 6));
-      ctx.restore();
-    } else if (l.state === 'strike') {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, l.timer / 10);
-      ctx.strokeStyle = '#fff';
-      ctx.shadowColor = '#bfe0ff';
-      ctx.shadowBlur = 18;
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      let lx = l.x;
-      ctx.moveTo(lx, l.bandY);
-      for (let y = l.bandY + 18; y < l.bandY + l.bandH; y += 18) {
-        lx += (Math.random() - 0.5) * 18;
-        ctx.lineTo(lx, y);
-      }
-      ctx.lineTo(l.x, l.bandY + l.bandH);
-      ctx.stroke();
-      ctx.restore();
-    } else if (l.state === 'fizzle') {
-      ctx.save();
-      ctx.globalAlpha = Math.max(0, l.timer / 16);
-      ctx.font = '22px serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('✨', l.x, l.bandY + l.bandH / 2);
-      ctx.restore();
-    }
-  });
-}
-function q2DrawFireFlash() {
-  if (q2FireFlash <= 0) return;
-  ctx.save();
-  ctx.globalAlpha = q2FireFlash / 12;
-  const fx = dino.x + dino.w, fy = q2Y + dino.h / 2;
-  const fg = ctx.createLinearGradient(fx, fy, fx + 140, fy);
-  fg.addColorStop(0, 'rgba(255,255,225,0.95)');
-  fg.addColorStop(0.4, 'rgba(255,150,40,0.85)');
-  fg.addColorStop(1, 'rgba(230,70,20,0)');
-  ctx.fillStyle = fg;
   ctx.beginPath();
-  ctx.moveTo(fx, fy - 14);
-  ctx.quadraticCurveTo(fx + 80, fy - 30, fx + 140, fy);
-  ctx.quadraticCurveTo(fx + 80, fy + 22, fx, fy + 14);
-  ctx.closePath();
+  ctx.arc(0, -e.h * 0.85, e.w * 0.34, 0, Math.PI * 2);
   ctx.fill();
+  ctx.fillStyle = '#e5484d';
+  ctx.beginPath(); ctx.arc(-e.w * 0.12, -e.h * 0.88, 2.6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(e.w * 0.12, -e.h * 0.88, 2.6, 0, Math.PI * 2); ctx.fill();
+  if (def.isBoss) {
+    ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, -e.h * 0.85, e.w * 0.34 + 4, 0, Math.PI * 2); ctx.stroke();
+  }
+  if (e.type === 'vampire') {
+    ctx.fillStyle = def.dark;
+    ctx.beginPath(); ctx.moveTo(-e.w / 2, -e.h * 0.55); ctx.lineTo(-e.w * 0.9, -e.h * 0.75); ctx.lineTo(-e.w / 2, -e.h * 0.35); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(e.w / 2, -e.h * 0.55); ctx.lineTo(e.w * 0.9, -e.h * 0.75); ctx.lineTo(e.w / 2, -e.h * 0.35); ctx.closePath(); ctx.fill();
+  }
+  // health mini-bar per musuh biasa (bukan boss, boss pakai bar besar terpisah)
+  if (!def.isBoss) {
+    const bw = e.w;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(-bw / 2, -e.h - 10, bw, 3);
+    ctx.fillStyle = '#5cd65c'; ctx.fillRect(-bw / 2, -e.h - 10, bw * Math.max(0, e.hp / e.maxHp), 3);
+  }
   ctx.restore();
 }
-function q2Draw() {
-  q2DrawBackground();
-  q2DrawClouds();
-  q2DrawLightnings();
-  q2Entities.forEach(e => e.type === 'mantra' ? q2DrawMantra(e) : q2DrawHazard(e));
-  let alpha = 1;
-  if (qInvincible > 0 && Math.floor(qFrame / 5) % 2 === 0) alpha = 0.35;
-  const dragonSkin = getSkin(6);
-  drawDinoShape(ctx, dino.x, q2Y, dino.w, dino.h, dragonSkin, true, qFrame, alpha);
-  q2DrawFireFlash();
-  qDrawPopups();
+function castleDrawMantra(m) {
+  ctx.save();
+  ctx.translate(m.x, m.y + Math.sin(m.bob) * 4);
+  ctx.font = '20px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = m.type === 'hp' ? 'rgba(255,90,110,0.8)' : 'rgba(184,166,255,0.8)';
+  ctx.shadowBlur = 10;
+  ctx.fillText(m.type === 'hp' ? '❤' : '✨', 0, 0);
+  ctx.restore();
 }
-
-/* ---- quest drawing ---- */
-function qSkyColors() { return MAPS[qMapIndex].sky; }
-function qDrawBackground() {
-  const [top, bottom] = qSkyColors();
+function castleDrawBackground() {
   const g = ctx.createLinearGradient(0, 0, 0, VH);
-  g.addColorStop(0, top); g.addColorStop(1, bottom);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, VW, VH);
-  const sx = VW * 0.84, sy = VH * 0.15, sr = 30;
-  const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr * 2.2);
-  sg.addColorStop(0, 'rgba(255,235,180,0.7)'); sg.addColorStop(1, 'rgba(255,235,180,0)');
-  ctx.fillStyle = sg;
-  ctx.beginPath(); ctx.arc(sx, sy, sr * 2.2, 0, Math.PI * 2); ctx.fill();
-}
-function qDrawClouds() {
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
-  qClouds.forEach(c => {
-    ctx.beginPath();
-    ctx.ellipse(c.x, c.y, c.w * 0.5, 9, 0, 0, Math.PI * 2);
-    ctx.ellipse(c.x + c.w * 0.28, c.y - 6, c.w * 0.3, 8, 0, 0, Math.PI * 2);
-    ctx.fill();
+  g.addColorStop(0, '#241a2e'); g.addColorStop(1, '#100a16');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+  // dinding batu bata sederhana
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+  const brickH = 26;
+  for (let y = 0; y < GROUND_Y; y += brickH) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(VW, y); ctx.stroke();
+  }
+  // obor menyala
+  [0.1, 0.5, 0.9].forEach((fx, i) => {
+    const tx = VW * fx, ty = GROUND_Y * 0.35;
+    const fl = ctx.createRadialGradient(tx, ty, 0, tx, ty, 55);
+    fl.addColorStop(0, 'rgba(255,150,60,0.5)'); fl.addColorStop(1, 'rgba(255,150,60,0)');
+    ctx.fillStyle = fl; ctx.beginPath(); ctx.arc(tx, ty, 55, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3a2a1a'; ctx.fillRect(tx - 3, ty, 6, 30);
+    ctx.fillStyle = '#ffb84d'; ctx.beginPath(); ctx.ellipse(tx, ty - 6, 5, 9, 0, 0, Math.PI * 2); ctx.fill();
   });
+  // lantai batu
+  ctx.fillStyle = '#332740'; ctx.fillRect(0, GROUND_Y, VW, VH - GROUND_Y);
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
+  for (let x = 0; x < VW; x += 34) { ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x, VH); ctx.stroke(); }
 }
-
-/* ---- Dekorasi map: bukit jauh (parallax) + pemandangan khas tiap wilayah ---- */
-let qHills = [];
-function qInitHills() {
-  qHills = [];
-  let x = -20;
-  while (x < (VW || 400) + 60) {
-    qHills.push({ x, w: 90 + Math.random() * 70, h: 30 + Math.random() * 34 });
-    x += 70 + Math.random() * 50;
-  }
-}
-function qDrawFarHills() {
-  const map = MAPS[qMapIndex];
-  const base = GROUND_Y - 4;
-  ctx.fillStyle = shadeColor(map.ground, -18);
-  ctx.globalAlpha = 0.55;
-  ctx.beginPath();
-  ctx.moveTo(0, base);
-  const totalW = qHills.reduce((a, hh) => a + hh.w, 0) + qHills.length * 60 || 1;
-  qHills.forEach(hh => {
-    let hx = (hh.x - qHillOffset) % totalW;
-    if (hx < -hh.w) hx += totalW;
-    ctx.moveTo(hx, base);
-    ctx.quadraticCurveTo(hx + hh.w / 2, base - hh.h, hx + hh.w, base);
-  });
-  ctx.lineTo(VW, base + 60);
-  ctx.lineTo(0, base + 60);
-  ctx.closePath();
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  // aksen khusus wilayah di deretan bukit jauh
-  if (map.id === 'snow') {
-    ctx.fillStyle = 'rgba(255,255,255,0.65)';
-    qHills.forEach(hh => {
-      let hx = (hh.x - qHillOffset) % totalW; if (hx < -hh.w) hx += totalW;
-      ctx.beginPath(); ctx.moveTo(hx + hh.w * 0.5 - 8, base - hh.h + 6); ctx.lineTo(hx + hh.w * 0.5, base - hh.h - 6); ctx.lineTo(hx + hh.w * 0.5 + 8, base - hh.h + 6); ctx.closePath(); ctx.fill();
-    });
-  } else if (map.id === 'city') {
-    ctx.fillStyle = 'rgba(30,30,34,0.4)';
-    qHills.forEach((hh, i) => {
-      if (i % 2 !== 0) return;
-      let hx = (hh.x - qHillOffset) % totalW; if (hx < -hh.w) hx += totalW;
-      ctx.fillRect(hx + hh.w * 0.3, base - hh.h - 14, 10, hh.h + 14);
-    });
-  }
-}
-
-let qDecor = [];
-let qHillOffset = 0;
-function qInitDecor() {
-  qDecor = [];
-  let x = 30;
-  for (let i = 0; i < 7; i++) {
-    x += 55 + Math.random() * 85;
-    qDecor.push({ x, seed: Math.random(), variant: Math.floor(Math.random() * 3) });
-  }
-  qInitHills();
-}
-function qUpdateDecor() {
-  qHillOffset += qSpeed * 0.25;
-  qDecor.forEach(d => { d.x -= qSpeed * 0.55; });
-  qDecor = qDecor.filter(d => d.x > -70);
-  while (qDecor.length < 7) {
-    const last = qDecor[qDecor.length - 1];
-    const x = (last ? last.x : VW) + 55 + Math.random() * 85;
-    qDecor.push({ x, seed: Math.random(), variant: Math.floor(Math.random() * 3) });
-  }
-}
-function qDrawDecor() {
-  const map = MAPS[qMapIndex];
-  const base = GROUND_Y - 3;
-  qDecor.forEach(d => drawMapDecorItem(ctx, map.id, d.x, base, d.seed, d.variant));
-}
-function drawMapDecorItem(dctx, mapId, x, gy, seed, variant) {
-  dctx.save();
-  dctx.translate(x, gy);
-  const scale = 0.75 + seed * 0.55;
-  dctx.scale(scale, scale);
-  if (mapId === 'forest') {
-    if (variant !== 2) {
-      // pohon pinus
-      dctx.fillStyle = '#5a3a20'; dctx.fillRect(-3, -14, 6, 14);
-      dctx.fillStyle = '#2e6b32';
-      [0, 1, 2].forEach(i => {
-        dctx.beginPath();
-        dctx.moveTo(-16 + i * 3, -14 - i * 10);
-        dctx.lineTo(16 - i * 3, -14 - i * 10);
-        dctx.lineTo(0, -34 - i * 10);
-        dctx.closePath(); dctx.fill();
-      });
-    } else {
-      dctx.fillStyle = '#3a7d3a';
-      dctx.beginPath(); dctx.ellipse(0, -8, 14, 10, 0, 0, Math.PI * 2); dctx.fill();
-      dctx.beginPath(); dctx.ellipse(-10, -4, 9, 7, 0, 0, Math.PI * 2); dctx.fill();
-    }
-  } else if (mapId === 'desert') {
-    if (variant !== 2) {
-      // kaktus
-      dctx.fillStyle = '#4c8a4c';
-      roundRectPath(dctx, -4, -34, 8, 34, 3); dctx.fill();
-      roundRectPath(dctx, -14, -22, 7, 16, 3); dctx.fill();
-      roundRectPath(dctx, 7, -28, 7, 20, 3); dctx.fill();
-    } else {
-      dctx.fillStyle = '#a8875a';
-      dctx.beginPath(); dctx.moveTo(-16, 0); dctx.lineTo(-4, -26); dctx.lineTo(8, -12); dctx.lineTo(16, 0); dctx.closePath(); dctx.fill();
-    }
-  } else if (mapId === 'snow') {
-    if (variant !== 2) {
-      dctx.fillStyle = '#3a6b4a'; dctx.fillRect(-2, -10, 4, 10);
-      dctx.fillStyle = '#dbeaf2';
-      [0, 1, 2].forEach(i => {
-        dctx.beginPath();
-        dctx.moveTo(-14 + i * 2.5, -10 - i * 9);
-        dctx.lineTo(14 - i * 2.5, -10 - i * 9);
-        dctx.lineTo(0, -26 - i * 9);
-        dctx.closePath(); dctx.fill();
-      });
-      dctx.fillStyle = '#3a6b4a';
-      [0, 1].forEach(i => {
-        dctx.beginPath();
-        dctx.moveTo(-12 + i * 3, -14 - i * 9);
-        dctx.lineTo(12 - i * 3, -14 - i * 9);
-        dctx.lineTo(0, -22 - i * 9);
-        dctx.closePath(); dctx.fill();
-      });
-    } else {
-      dctx.strokeStyle = '#cfe6f2'; dctx.lineWidth = 2;
-      dctx.beginPath(); dctx.moveTo(0, 0); dctx.lineTo(0, -22); dctx.moveTo(-9, -11); dctx.lineTo(9, -11); dctx.moveTo(-6, -18); dctx.lineTo(6, -4); dctx.moveTo(6, -18); dctx.lineTo(-6, -4); dctx.stroke();
-    }
-  } else if (mapId === 'city') {
-    if (variant !== 2) {
-      dctx.fillStyle = '#5a5d62';
-      const bh = 30 + seed * 26;
-      dctx.fillRect(-11, -bh, 22, bh);
-      dctx.fillStyle = '#3a3d42';
-      dctx.beginPath(); dctx.moveTo(-11, -bh); dctx.lineTo(-2, -bh - 10); dctx.lineTo(6, -bh); dctx.closePath(); dctx.fill();
-      dctx.fillStyle = 'rgba(255,220,140,0.55)';
-      for (let r = 0; r < Math.floor(bh / 9); r++) {
-        for (let cix = 0; cix < 2; cix++) {
-          if ((r + cix) % 2 === 0) dctx.fillRect(-7 + cix * 9, -bh + 5 + r * 9, 4, 4);
-        }
-      }
-    } else {
-      dctx.fillStyle = '#4a4d52';
-      dctx.beginPath(); dctx.moveTo(-14, 0); dctx.lineTo(-6, -14); dctx.lineTo(4, -6); dctx.lineTo(14, -10); dctx.lineTo(14, 0); dctx.closePath(); dctx.fill();
-    }
-  } else {
-    if (variant !== 2) {
-      // gubuk kayu
-      dctx.fillStyle = '#8a6a42'; dctx.fillRect(-13, -20, 26, 20);
-      dctx.fillStyle = '#5a3a1e';
-      dctx.beginPath(); dctx.moveTo(-16, -20); dctx.lineTo(0, -34); dctx.lineTo(16, -20); dctx.closePath(); dctx.fill();
-      dctx.fillStyle = '#3a2a18'; dctx.fillRect(-4, -12, 8, 12);
-    } else {
-      dctx.strokeStyle = '#6a4a28'; dctx.lineWidth = 3;
-      dctx.beginPath(); dctx.moveTo(-10, 0); dctx.lineTo(-10, -18); dctx.moveTo(10, 0); dctx.lineTo(10, -18); dctx.moveTo(-12, -12); dctx.lineTo(12, -12); dctx.stroke();
-    }
-  }
-  dctx.restore();
-}
-function qDrawGround() {
-  const map = MAPS[qMapIndex];
-  const dg = ctx.createLinearGradient(0, GROUND_Y, 0, VH);
-  dg.addColorStop(0, map.dirt); dg.addColorStop(1, map.groundDark);
-  ctx.fillStyle = dg;
-  ctx.fillRect(0, GROUND_Y + 6, VW, VH - GROUND_Y - 6);
-  ctx.fillStyle = map.ground;
-  ctx.fillRect(0, GROUND_Y - 2, VW, 8);
-  const count = Math.ceil(VW / 22) + 2;
-  for (let i = 0; i < count; i++) {
-    const x = (i * 22 - qGroundOffset % 22);
-    ctx.fillStyle = map.groundDark;
-    ctx.fillRect(x, GROUND_Y - 6, 3, 6);
-    ctx.fillRect(x + 5, GROUND_Y - 8, 3, 8);
-  }
-}
-function qDrawRock(e) {
-  ctx.fillStyle = '#8a8580';
-  roundRectPath(ctx, e.x, e.y, e.w, e.h, 5); ctx.fill();
-  ctx.fillStyle = '#6b6862';
-  ctx.fillRect(e.x + 4, e.y + e.h - 8, e.w - 8, 4);
-}
-/* Bentuk musuh/bos digambar per-map agar jelas siluetnya & detail, bisa dipakai
-   ulang baik saat gameplay maupun di panel komik cerita. Tiap makhluk punya
-   shading (gradasi), mata dengan sorot, dan bagian tubuh yang jelas terbaca. */
-function shadeColor(hex, amt) {
-  const n = hex.replace('#', '');
-  const num = parseInt(n.length === 3 ? n.split('').map(c => c + c).join('') : n, 16);
-  let r = (num >> 16) + amt, g = ((num >> 8) & 0xff) + amt, b = (num & 0xff) + amt;
-  r = Math.max(0, Math.min(255, r)); g = Math.max(0, Math.min(255, g)); b = Math.max(0, Math.min(255, b));
-  return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1);
-}
-function bodyGradient(dctx, cx, cy, r, color, hitFlash) {
-  if (hitFlash) return '#ffffff';
-  const g = dctx.createRadialGradient(cx - r * 0.3, cy - r * 0.4, r * 0.1, cx, cy, r * 1.3);
-  g.addColorStop(0, shadeColor(color, 42));
-  g.addColorStop(0.6, color);
-  g.addColorStop(1, shadeColor(color, -35));
-  return g;
-}
-function drawEye(dctx, x, y, r, glow) {
-  if (glow) {
-    const gg = dctx.createRadialGradient(x, y, 0, x, y, r * 3.2);
-    gg.addColorStop(0, 'rgba(255,60,40,0.85)');
-    gg.addColorStop(1, 'rgba(255,60,40,0)');
-    dctx.fillStyle = gg;
-    dctx.beginPath(); dctx.arc(x, y, r * 3.2, 0, Math.PI * 2); dctx.fill();
-    dctx.fillStyle = '#2a0303';
-    dctx.beginPath(); dctx.arc(x, y, r * 1.15, 0, Math.PI * 2); dctx.fill();
-    dctx.fillStyle = '#ff2d2d';
-    dctx.beginPath(); dctx.arc(x, y, r, 0, Math.PI * 2); dctx.fill();
-    dctx.fillStyle = '#ffd76b';
-    dctx.beginPath(); dctx.arc(x, y, r * 0.4, 0, Math.PI * 2); dctx.fill();
-  } else {
-    dctx.fillStyle = '#1a1a1a';
-    dctx.beginPath(); dctx.arc(x, y, r * 1.1, 0, Math.PI * 2); dctx.fill();
-    dctx.fillStyle = '#fff';
-    dctx.beginPath(); dctx.arc(x, y, r, 0, Math.PI * 2); dctx.fill();
-    dctx.fillStyle = '#1a1a1a';
-    dctx.beginPath(); dctx.arc(x + r * 0.15, y, r * 0.45, 0, Math.PI * 2); dctx.fill();
-  }
-}
-function drawCreatureByMapId(dctx, mapId, cx, cy, w, h, color, hitFlash, isBoss) {
-  dctx.save();
-  dctx.translate(cx, cy);
-  const fill = bodyGradient(dctx, 0, 0, Math.max(w, h) * 0.5, color, hitFlash);
-  const dark = hitFlash ? '#fff' : shadeColor(color, -55);
-  const outline = hitFlash ? '#fff' : '#161311';
-  dctx.lineJoin = 'round';
-
-  if (mapId === 'forest') {
-    // === SERIGALA: badan condong maju, kaki jelas, moncong terbuka bertaring ===
-    const s = isBoss ? 1.12 : 1;
-    // ekor berbulu
-    dctx.fillStyle = fill; dctx.strokeStyle = outline; dctx.lineWidth = 1.6;
-    dctx.beginPath();
-    dctx.moveTo(-w * 0.42 * s, h * 0.02);
-    dctx.quadraticCurveTo(-w * 0.66 * s, -h * 0.14, -w * 0.58 * s, -h * 0.34);
-    dctx.quadraticCurveTo(-w * 0.48 * s, -h * 0.18, -w * 0.32 * s, h * 0.06);
-    dctx.closePath(); dctx.fill(); dctx.stroke();
-    // 4 kaki
-    dctx.fillStyle = dark;
-    [[-w * 0.24, h * 0.3], [-w * 0.02, h * 0.32], [w * 0.14, h * 0.3], [w * 0.3, h * 0.28]].forEach(p => {
-      dctx.fillRect(p[0] * s - 3, p[1] * s - 12, 6, 16);
-    });
-    // badan utama
-    dctx.fillStyle = fill;
-    dctx.beginPath(); dctx.ellipse(0, 2, w * 0.46 * s, h * 0.3 * s, -0.05, 0, Math.PI * 2); dctx.fill(); dctx.stroke();
-    // punuk/leher
-    dctx.beginPath(); dctx.ellipse(w * 0.12 * s, -h * 0.12 * s, w * 0.24 * s, h * 0.22 * s, 0, 0, Math.PI * 2); dctx.fill(); dctx.stroke();
-    // moncong dengan mulut terbuka
-    dctx.beginPath();
-    dctx.moveTo(w * 0.3 * s, -h * 0.14 * s);
-    dctx.lineTo(w * 0.62 * s, -h * 0.04 * s);
-    dctx.lineTo(w * 0.5 * s, h * 0.1 * s);
-    dctx.lineTo(w * 0.28 * s, h * 0.08 * s);
-    dctx.closePath(); dctx.fill(); dctx.stroke();
-    dctx.fillStyle = '#8a1414';
-    dctx.beginPath(); dctx.moveTo(w * 0.36 * s, -h * 0.01 * s); dctx.lineTo(w * 0.58 * s, h * 0.0 * s); dctx.lineTo(w * 0.4 * s, h * 0.08 * s); dctx.closePath(); dctx.fill();
-    dctx.fillStyle = '#fff';
-    dctx.beginPath(); dctx.moveTo(w * 0.37 * s, -h * 0.005 * s); dctx.lineTo(w * 0.44 * s, -h * 0.005 * s); dctx.lineTo(w * 0.4 * s, h * 0.05 * s); dctx.closePath(); dctx.fill();
-    dctx.beginPath(); dctx.moveTo(w * 0.5 * s, h * 0.0 * s); dctx.lineTo(w * 0.56 * s, h * 0.0 * s); dctx.lineTo(w * 0.52 * s, h * 0.05 * s); dctx.closePath(); dctx.fill();
-    // telinga runcing
-    dctx.fillStyle = fill;
-    dctx.beginPath(); dctx.moveTo(-w * 0.06 * s, -h * 0.3 * s); dctx.lineTo(w * 0.02 * s, -h * 0.58 * s); dctx.lineTo(w * 0.14 * s, -h * 0.28 * s); dctx.closePath(); dctx.fill(); dctx.stroke();
-    dctx.beginPath(); dctx.moveTo(w * 0.1 * s, -h * 0.32 * s); dctx.lineTo(w * 0.2 * s, -h * 0.6 * s); dctx.lineTo(w * 0.28 * s, -h * 0.3 * s); dctx.closePath(); dctx.fill(); dctx.stroke();
-    // mata
-    drawEye(dctx, w * 0.32 * s, -h * 0.16 * s, isBoss ? 2.6 : 2, isBoss && !hitFlash);
-    if (isBoss) {
-      dctx.strokeStyle = dark; dctx.lineWidth = 2;
-      for (let i = 0; i < 3; i++) { dctx.beginPath(); dctx.moveTo(-w * 0.1 + i * 8, -h * 0.24); dctx.lineTo(-w * 0.02 + i * 8, -h * 0.1); dctx.stroke(); }
-    }
-  } else if (mapId === 'desert') {
-    // === KALAJENGKING: segmen badan, dua capit besar, ekor melengkung + sengat ===
-    const s = isBoss ? 1.1 : 1;
-    dctx.fillStyle = fill; dctx.strokeStyle = outline; dctx.lineWidth = 1.6;
-    // kaki-kaki kecil
-    dctx.strokeStyle = dark; dctx.lineWidth = 2.4;
-    for (let i = 0; i < 3; i++) {
-      const bx = -w * 0.2 * s + i * w * 0.18 * s;
-      dctx.beginPath(); dctx.moveTo(bx, h * 0.12 * s); dctx.lineTo(bx - 8, h * 0.3 * s); dctx.stroke();
-      dctx.beginPath(); dctx.moveTo(bx, h * 0.1 * s); dctx.lineTo(bx + 8, h * 0.28 * s); dctx.stroke();
-    }
-    dctx.strokeStyle = outline; dctx.lineWidth = 1.6;
-    // ekor melengkung dgn segmen + sengat
-    dctx.fillStyle = fill;
-    dctx.beginPath();
-    dctx.moveTo(-w * 0.28 * s, h * 0.02 * s);
-    dctx.quadraticCurveTo(-w * 0.58 * s, -h * 0.22 * s, -w * 0.4 * s, -h * 0.5 * s);
-    dctx.quadraticCurveTo(-w * 0.3 * s, -h * 0.62 * s, -w * 0.14 * s, -h * 0.52 * s);
-    dctx.lineTo(-w * 0.2 * s, -h * 0.42 * s);
-    dctx.quadraticCurveTo(-w * 0.3 * s, -h * 0.5 * s, -w * 0.36 * s, -h * 0.42 * s);
-    dctx.quadraticCurveTo(-w * 0.46 * s, -h * 0.2 * s, -w * 0.22 * s, -h * 0.0 * s);
-    dctx.closePath(); dctx.fill(); dctx.stroke();
-    dctx.fillStyle = '#1a1a1a';
-    dctx.beginPath(); dctx.moveTo(-w * 0.16 * s, -h * 0.54 * s); dctx.lineTo(-w * 0.06 * s, -h * 0.62 * s); dctx.lineTo(-w * 0.1 * s, -h * 0.44 * s); dctx.closePath(); dctx.fill();
-    // badan bersegmen
-    dctx.fillStyle = fill;
-    [0, 1, 2].forEach(i => {
-      dctx.beginPath();
-      dctx.ellipse(-w * 0.05 * s + i * w * 0.16 * s, 2 - i * 1.2, w * 0.16 * s, h * 0.22 * s, 0, 0, Math.PI * 2);
-      dctx.fill(); dctx.stroke();
-    });
-    // dua capit besar
-    dctx.fillStyle = fill;
-    dctx.beginPath();
-    dctx.moveTo(w * 0.34 * s, -h * 0.12 * s);
-    dctx.quadraticCurveTo(w * 0.62 * s, -h * 0.32 * s, w * 0.58 * s, -h * 0.06 * s);
-    dctx.quadraticCurveTo(w * 0.5 * s, -h * 0.02 * s, w * 0.5 * s, h * 0.06 * s);
-    dctx.quadraticCurveTo(w * 0.4 * s, h * 0.02 * s, w * 0.34 * s, -h * 0.02 * s);
-    dctx.closePath(); dctx.fill(); dctx.stroke();
-    dctx.beginPath();
-    dctx.moveTo(w * 0.34 * s, h * 0.14 * s);
-    dctx.quadraticCurveTo(w * 0.6 * s, h * 0.1 * s, w * 0.56 * s, h * 0.32 * s);
-    dctx.quadraticCurveTo(w * 0.46 * s, h * 0.3 * s, w * 0.44 * s, h * 0.22 * s);
-    dctx.quadraticCurveTo(w * 0.38 * s, h * 0.2 * s, w * 0.34 * s, h * 0.14 * s);
-    dctx.closePath(); dctx.fill(); dctx.stroke();
-    // mata kecil di depan
-    drawEye(dctx, w * 0.32 * s, -h * 0.18 * s, isBoss ? 2.4 : 1.8, isBoss && !hitFlash);
-  } else if (mapId === 'snow') {
-    // === BERUANG ES: badan besar berbulu, moncong hitam, cakar tajam ===
-    const s = isBoss ? 1.12 : 1;
-    dctx.fillStyle = fill; dctx.strokeStyle = outline; dctx.lineWidth = 1.6;
-    // kaki belakang
-    dctx.fillStyle = dark;
-    dctx.beginPath(); dctx.ellipse(-w * 0.22 * s, h * 0.34 * s, w * 0.14 * s, h * 0.12 * s, 0, 0, Math.PI * 2); dctx.fill();
-    dctx.beginPath(); dctx.ellipse(w * 0.02 * s, h * 0.36 * s, w * 0.15 * s, h * 0.12 * s, 0, 0, Math.PI * 2); dctx.fill();
-    // badan bulat besar
-    dctx.fillStyle = fill;
-    dctx.beginPath(); dctx.ellipse(0, 4, w * 0.5 * s, h * 0.4 * s, 0, 0, Math.PI * 2); dctx.fill(); dctx.stroke();
-    // kaki depan dengan cakar
-    dctx.fillStyle = fill;
-    dctx.beginPath(); dctx.ellipse(w * 0.2 * s, h * 0.28 * s, w * 0.16 * s, h * 0.16 * s, 0, 0, Math.PI * 2); dctx.fill(); dctx.stroke();
-    dctx.strokeStyle = '#2b2b2b'; dctx.lineWidth = 1.8;
-    for (let i = 0; i < 3; i++) { dctx.beginPath(); dctx.moveTo(w * 0.16 * s + i * 5, h * 0.36 * s); dctx.lineTo(w * 0.14 * s + i * 5, h * 0.44 * s); dctx.stroke(); }
-    dctx.strokeStyle = outline;
-    // kepala
-    dctx.fillStyle = fill;
-    dctx.beginPath(); dctx.arc(w * 0.3 * s, -h * 0.2 * s, h * 0.24 * s, 0, Math.PI * 2); dctx.fill(); dctx.stroke();
-    // telinga
-    dctx.beginPath(); dctx.arc(w * 0.16 * s, -h * 0.4 * s, h * 0.09 * s, 0, Math.PI * 2); dctx.fill(); dctx.stroke();
-    dctx.beginPath(); dctx.arc(w * 0.42 * s, -h * 0.4 * s, h * 0.09 * s, 0, Math.PI * 2); dctx.fill(); dctx.stroke();
-    // moncong
-    dctx.fillStyle = '#f5f8fb';
-    dctx.beginPath(); dctx.ellipse(w * 0.44 * s, -h * 0.1 * s, w * 0.12 * s, h * 0.12 * s, 0, 0, Math.PI * 2); dctx.fill();
-    dctx.fillStyle = '#2b2b2b';
-    dctx.beginPath(); dctx.arc(w * 0.5 * s, -h * 0.12 * s, 2.4, 0, Math.PI * 2); dctx.fill();
-    // taring
-    dctx.fillStyle = '#fff';
-    dctx.beginPath(); dctx.moveTo(w * 0.4 * s, -h * 0.02 * s); dctx.lineTo(w * 0.43 * s, h * 0.04 * s); dctx.lineTo(w * 0.37 * s, -h * 0.01 * s); dctx.closePath(); dctx.fill();
-    drawEye(dctx, w * 0.36 * s, -h * 0.22 * s, isBoss ? 2.6 : 2, isBoss && !hitFlash);
-  } else if (mapId === 'city') {
-    // === ROBOT PENJAGA: badan kotak berpanel, kepala terpisah, lengan mekanik ===
-    const s = isBoss ? 1.12 : 1;
-    dctx.strokeStyle = outline; dctx.lineWidth = 1.8;
-    // kaki mekanik
-    dctx.fillStyle = dark;
-    dctx.fillRect(-w * 0.2 * s, h * 0.14 * s, w * 0.12 * s, h * 0.26 * s);
-    dctx.fillRect(w * 0.08 * s, h * 0.14 * s, w * 0.12 * s, h * 0.26 * s);
-    dctx.strokeRect(-w * 0.2 * s, h * 0.14 * s, w * 0.12 * s, h * 0.26 * s);
-    dctx.strokeRect(w * 0.08 * s, h * 0.14 * s, w * 0.12 * s, h * 0.26 * s);
-    // lengan
-    dctx.fillStyle = fill;
-    roundRectPath(dctx, -w * 0.46 * s, -h * 0.08 * s, w * 0.16 * s, h * 0.4 * s, 3); dctx.fill(); dctx.stroke();
-    roundRectPath(dctx, w * 0.32 * s, -h * 0.08 * s, w * 0.16 * s, h * 0.4 * s, 3); dctx.fill(); dctx.stroke();
-    // badan kotak berpanel
-    dctx.fillStyle = fill;
-    roundRectPath(dctx, -w * 0.32 * s, -h * 0.34 * s, w * 0.64 * s, h * 0.56 * s, 5); dctx.fill(); dctx.stroke();
-    dctx.strokeStyle = 'rgba(0,0,0,0.35)'; dctx.lineWidth = 1;
-    dctx.beginPath(); dctx.moveTo(-w * 0.32 * s, -h * 0.06 * s); dctx.lineTo(w * 0.32 * s, -h * 0.06 * s); dctx.stroke();
-    dctx.beginPath(); dctx.moveTo(-w * 0.1 * s, -h * 0.34 * s); dctx.lineTo(-w * 0.1 * s, h * 0.22 * s); dctx.stroke();
-    dctx.strokeStyle = outline;
-    // dada menyala
-    dctx.fillStyle = hitFlash ? '#fff' : '#ffd76b';
-    dctx.beginPath(); dctx.arc(0, -h * 0.14 * s, w * 0.07 * s, 0, Math.PI * 2); dctx.fill();
-    // kepala + antena
-    dctx.fillStyle = fill;
-    roundRectPath(dctx, -w * 0.16 * s, -h * 0.62 * s, w * 0.32 * s, h * 0.28 * s, 4); dctx.fill(); dctx.stroke();
-    dctx.strokeStyle = dark; dctx.lineWidth = 2.2;
-    dctx.beginPath(); dctx.moveTo(0, -h * 0.62 * s); dctx.lineTo(0, -h * 0.76 * s); dctx.stroke();
-    dctx.fillStyle = hitFlash ? '#fff' : '#ff5d5d';
-    dctx.beginPath(); dctx.arc(0, -h * 0.78 * s, 3, 0, Math.PI * 2); dctx.fill();
-    // visor mata menyala
-    dctx.fillStyle = '#181a1c';
-    roundRectPath(dctx, -w * 0.13 * s, -h * 0.52 * s, w * 0.26 * s, h * 0.1 * s, 3); dctx.fill();
-    drawEye(dctx, -w * 0.05 * s, -h * 0.47 * s, isBoss ? 2.2 : 1.6, isBoss && !hitFlash);
-    drawEye(dctx, w * 0.06 * s, -h * 0.47 * s, isBoss ? 2.2 : 1.6, isBoss && !hitFlash);
-  } else {
-    // === BANDIT TOMBAK: tubuh berdiri, jubah, kepala berikat kain, tombak ===
-    const s = isBoss ? 1.1 : 1;
-    dctx.strokeStyle = outline; dctx.lineWidth = 1.6;
-    // kaki
-    dctx.fillStyle = dark;
-    dctx.fillRect(-w * 0.12 * s, h * 0.24 * s, w * 0.1 * s, h * 0.22 * s);
-    dctx.fillRect(w * 0.02 * s, h * 0.24 * s, w * 0.1 * s, h * 0.22 * s);
-    // jubah/badan
-    dctx.fillStyle = fill;
-    dctx.beginPath();
-    dctx.moveTo(-w * 0.2 * s, -h * 0.4 * s);
-    dctx.lineTo(w * 0.2 * s, -h * 0.4 * s);
-    dctx.lineTo(w * 0.26 * s, h * 0.3 * s);
-    dctx.lineTo(-w * 0.26 * s, h * 0.3 * s);
-    dctx.closePath(); dctx.fill(); dctx.stroke();
-    // ikat pinggang
-    dctx.fillStyle = '#3a2a18';
-    dctx.fillRect(-w * 0.24 * s, h * 0.02 * s, w * 0.48 * s, h * 0.07 * s);
-    // kepala + ikat kain
-    dctx.fillStyle = '#c98f6a';
-    dctx.beginPath(); dctx.arc(0, -h * 0.52 * s, h * 0.16 * s, 0, Math.PI * 2); dctx.fill(); dctx.stroke();
-    dctx.fillStyle = fill;
-    dctx.beginPath(); dctx.arc(0, -h * 0.56 * s, h * 0.17 * s, Math.PI, Math.PI * 2); dctx.fill();
-    dctx.beginPath(); dctx.moveTo(w * 0.14 * s, -h * 0.52 * s); dctx.lineTo(w * 0.28 * s, -h * 0.44 * s); dctx.lineTo(w * 0.15 * s, -h * 0.4 * s); dctx.closePath(); dctx.fill();
-    drawEye(dctx, w * 0.06 * s, -h * 0.52 * s, isBoss ? 2.2 : 1.6, isBoss && !hitFlash);
-    // tombak
-    dctx.strokeStyle = '#8a6a42'; dctx.lineWidth = 3;
-    dctx.beginPath(); dctx.moveTo(w * 0.3 * s, -h * 0.56 * s); dctx.lineTo(w * 0.4 * s, h * 0.38 * s); dctx.stroke();
-    dctx.fillStyle = '#c7ccd2';
-    dctx.beginPath(); dctx.moveTo(w * 0.26 * s, -h * 0.58 * s); dctx.lineTo(w * 0.34 * s, -h * 0.56 * s); dctx.lineTo(w * 0.28 * s, -h * 0.78 * s); dctx.closePath(); dctx.fill();
-    dctx.strokeStyle = outline; dctx.lineWidth = 1;
-    dctx.stroke();
-  }
-  dctx.restore();
-}
-
-/* Bos = versi "boss" dari makhluk yang sama, tapi jauh lebih besar & menyeramkan:
-   aura merah berdenyut, mahkota duri tajam, mata menyala terang, armor/bekas luka,
-   dan cincin energi. Dipakai SAMA PERSIS baik saat gameplay maupun di panel komik. */
-function drawBossByMapId(dctx, mapId, cx, cy, w, h, color, hitFlash) {
-  dctx.save();
-  const pulse = 0.85 + Math.sin(Date.now() / 220) * 0.15;
-  const glow = dctx.createRadialGradient(cx, cy, 4, cx, cy, w * 1.1 * pulse);
-  glow.addColorStop(0, 'rgba(255,40,40,0.4)');
-  glow.addColorStop(0.6, 'rgba(255,40,40,0.12)');
-  glow.addColorStop(1, 'rgba(255,40,40,0)');
-  dctx.fillStyle = glow;
-  dctx.beginPath(); dctx.arc(cx, cy, w * 1.1 * pulse, 0, Math.PI * 2); dctx.fill();
-  dctx.restore();
-
-  // badan utama (skala lebih besar + detail boss aktif)
-  drawCreatureByMapId(dctx, mapId, cx, cy, w, h, color, hitFlash, true);
-
-  // mahkota duri besar & tajam di atas kepala, penanda tegas "BOS"
-  dctx.save();
-  dctx.translate(cx, cy);
-  dctx.fillStyle = hitFlash ? '#fff' : '#151312';
-  dctx.strokeStyle = hitFlash ? '#fff' : '#000';
-  dctx.lineWidth = 1;
-  for (let i = 0; i < 5; i++) {
-    const sx = -w * 0.3 + i * (w * 0.15);
-    const tall = i === 2 ? h * 0.78 : (i % 2 === 0 ? h * 0.6 : h * 0.68);
-    dctx.beginPath();
-    dctx.moveTo(sx, -h * 0.36);
-    dctx.lineTo(sx + w * 0.04, -tall);
-    dctx.lineTo(sx + w * 0.09, -h * 0.36);
-    dctx.closePath();
-    dctx.fill(); dctx.stroke();
-  }
-  dctx.restore();
-
-  // cincin energi ganda penegas ukuran boss
-  dctx.save();
-  dctx.strokeStyle = hitFlash ? 'rgba(255,255,255,0.85)' : 'rgba(255,220,120,0.6)';
-  dctx.lineWidth = 2.4;
-  dctx.beginPath(); dctx.arc(cx, cy, Math.max(w, h) * 0.66, 0, Math.PI * 2); dctx.stroke();
-  dctx.strokeStyle = hitFlash ? 'rgba(255,255,255,0.5)' : 'rgba(255,80,80,0.35)';
-  dctx.lineWidth = 1.4;
-  dctx.beginPath(); dctx.arc(cx, cy, Math.max(w, h) * 0.78, 0, Math.PI * 2); dctx.stroke();
-  dctx.restore();
-}
-
-/* ===================== DARAH BOS (efek tebal & dramatis) ===================== */
-let qBloodParticles = [];
-function spawnBossBlood(x, y, count, big) {
-  for (let i = 0; i < count; i++) {
-    const ang = -Math.PI * 0.5 + (Math.random() - 0.5) * Math.PI * 1.1;
-    const spd = (big ? 3.2 : 2) + Math.random() * (big ? 3.5 : 2.2);
-    qBloodParticles.push({
-      x, y,
-      vx: Math.cos(ang) * spd,
-      vy: Math.sin(ang) * spd - (big ? 2 : 1),
-      r: (big ? 3.5 : 2) + Math.random() * (big ? 4 : 2.5),
-      life: 40 + Math.random() * 30,
-      settled: false, sx: 0, sy: 0
-    });
-  }
-}
-function updateBossBlood() {
-  qBloodParticles.forEach(p => {
-    if (!p.settled) {
-      p.vy += 0.35;
-      p.x += p.vx; p.y += p.vy;
-      if (p.y >= GROUND_Y - 2) { p.settled = true; p.sy = GROUND_Y - 2; p.sx = p.x; }
-    }
-    p.life--;
-  });
-  qBloodParticles = qBloodParticles.filter(p => p.life > 0);
-}
-function drawBossBlood() {
-  qBloodParticles.forEach(p => {
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, p.life / 20);
-    ctx.fillStyle = '#8a0e0e';
-    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  });
-}
-/* Genangan darah tebal & tetesan di bawah bos, makin besar makin sedikit HP-nya */
-function drawBossBloodPool(cx, groundY, w, ratio) {
-  if (ratio <= 0) return;
-  ctx.save();
-  const poolW = w * (0.5 + ratio * 0.9);
-  const poolH = 6 + ratio * 10;
-  const grd = ctx.createRadialGradient(cx, groundY - poolH * 0.3, 2, cx, groundY, poolW);
-  grd.addColorStop(0, 'rgba(150,10,10,0.95)');
-  grd.addColorStop(0.6, 'rgba(120,8,8,0.85)');
-  grd.addColorStop(1, 'rgba(90,5,5,0)');
-  ctx.fillStyle = grd;
-  ctx.beginPath();
-  ctx.ellipse(cx, groundY, poolW, poolH, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // beberapa tetesan darah kental menetes dari tubuh
-  ctx.fillStyle = '#7a0c0c';
-  const drips = 2 + Math.floor(ratio * 4);
-  for (let i = 0; i < drips; i++) {
-    const dx = cx - poolW * 0.6 + (i / Math.max(1, drips - 1)) * poolW * 1.2;
-    const dh = 5 + ratio * 14 + (i % 3) * 4;
-    ctx.beginPath();
-    ctx.moveTo(dx - 3, groundY - dh);
-    ctx.quadraticCurveTo(dx - 4, groundY - dh * 0.4, dx, groundY - 1);
-    ctx.quadraticCurveTo(dx + 4, groundY - dh * 0.4, dx + 3, groundY - dh);
-    ctx.closePath(); ctx.fill();
-  }
-  ctx.restore();
-}
-
-function qDrawEnemy(e) {
-  const map = MAPS[qMapIndex];
-  const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
-  const bob = Math.sin(e.walkPhase * 0.3) * 2;
-  drawCreatureByMapId(ctx, map.id, cx, cy + bob, e.w, e.h, map.enemyColor, e.hitFlash > 0);
-}
-function qDrawBoss() {
-  if (!qBoss) return;
-  const map = MAPS[qMapIndex];
-  const bob = Math.sin(qBoss.bobPhase) * 3;
-  drawBossBloodPool(qBoss.x, GROUND_Y - 2, qBoss.w, qBoss.bloodRatio || 0);
-  drawBossByMapId(ctx, map.id, qBoss.x, qBoss.y + bob, qBoss.w, qBoss.h, map.bossColor, qBoss.hitFlash > 0);
-  drawBossBlood();
-  if (qBoss.warnUntil > 0) {
-    const pulse = Math.floor(qFrame / 5) % 2 === 0;
-    ctx.fillStyle = pulse ? 'rgba(255,80,80,0.5)' : 'rgba(255,80,80,0.15)';
-    ctx.beginPath(); ctx.arc(qBoss.x, qBoss.y, qBoss.w * 0.8, 0, Math.PI * 2); ctx.fill();
-  }
-  if (qBoss.strikeUntil > 0) {
-    ctx.fillStyle = 'rgba(255,40,40,0.55)';
-    ctx.fillRect(0, GROUND_Y - 6, VW, 6);
-  }
-}
-function qDrawPopups() {
-  qPopups.forEach(p => {
-    ctx.save();
-    ctx.globalAlpha = Math.max(0, p.life / 30);
-    const scale = p.life > 24 ? 1 + (30 - p.life) * 0.08 : 1;
-    ctx.translate(p.x, p.y);
-    ctx.scale(scale, scale);
-    ctx.font = 'bold 16px monospace';
-    ctx.textAlign = 'center';
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    ctx.strokeText(p.text, 0, 0);
-    ctx.fillStyle = p.color;
-    ctx.fillText(p.text, 0, 0);
-    ctx.restore();
-  });
-}
-function qDrawAttackFlash() {
-  if (qAttackFlash <= 0) return;
-  ctx.save();
-  ctx.globalAlpha = qAttackFlash / 10;
-  ctx.strokeStyle = '#ffd76b';
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(dino.x + dino.w + 10, dino.y + dino.h / 2, 26, -0.6, 0.6);
-  ctx.stroke();
-  ctx.restore();
-}
-function questDraw() {
-  qDrawBackground();
-  qDrawClouds();
-  qDrawFarHills();
-  qDrawDecor();
-  qDrawGround();
-  qEntities.forEach(e => e.type === 'rock' ? qDrawRock(e) : qDrawEnemy(e));
-  if (qBossActive) qDrawBoss();
-  else if (qBloodParticles.length) drawBossBlood();
+function castleDraw() {
+  castleDrawBackground();
+  castle.mantras.forEach(castleDrawMantra);
+  castle.enemies.slice().sort((a, b) => a.y - b.y).forEach(castleDrawEnemy);
+  if (castle.boss) castleDrawEnemy(castle.boss);
+  const s = getSkin(data.selectedSkin);
   let alpha = 1;
-  if (qInvincible > 0 && Math.floor(qFrame / 5) % 2 === 0) alpha = 0.35;
-  const skin = getSkin(data.selectedSkin);
-  if (qAge < 20) {
-    drawBabyDinoShape(ctx, dino.x, dino.y, dino.w, dino.h, skin, dino.jumping, qFrame, alpha);
+  if (castle.invincible > 0 && Math.floor(frame / 4) % 2 === 0) alpha = 0.4;
+  ctx.save();
+  if (castle.facing < 0) {
+    ctx.translate(dino.x + dino.w, 0); ctx.scale(-1, 1);
+    drawDinoShape(ctx, 0, dino.y, dino.w, dino.h, s, dino.jumping, frame, alpha);
   } else {
-    drawDinoShape(ctx, dino.x, dino.y, dino.w, dino.h, skin, dino.jumping, qFrame, alpha);
+    drawDinoShape(ctx, dino.x, dino.y, dino.w, dino.h, s, dino.jumping, frame, alpha);
   }
-  qDrawAttackFlash();
-  qDrawPopups();
+  ctx.restore();
+}
+function startQuest() {
+  mode = 'quest';
+  castleResetRun();
+  document.getElementById('castleFloorPill').textContent = '🏰 LANTAI 1';
+  castleUpdateSkillButtons();
+  castleUpdateHpBar();
+  castleUpdateProgress();
+  dino.w = 40; dino.h = 40;
+  resetDino();
+  showScreen('playing');
+  castleToast('🏰 Lantai 1 — Aula Bawah. Bertahan dari zombie!');
 }
 
 /* ===================== STATE ===================== */
@@ -3759,7 +2133,6 @@ function maybeChangeBiome() {
 /* ===================== INPUT ===================== */
 function jump() {
   if (state !== 'playing' || qPaused || paused) return;
-  if (inChapter2) { q2Thrust = true; return; }
   if (!dino.jumping) {
     dino.jumping = true;
     dino.vy = mode === 'quest' ? JUMP_FORCE : currentJumpForce();
@@ -3767,7 +2140,6 @@ function jump() {
   }
 }
 function releaseFlight() {
-  if (inChapter2) q2Thrust = false;
 }
 canvas.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive: false });
 canvas.addEventListener('touchend', (e) => { e.preventDefault(); releaseFlight(); }, { passive: false });
@@ -3798,7 +2170,7 @@ document.getElementById('pauseResumeBtn').addEventListener('click', () => {
 document.getElementById('pauseRestartBtn').addEventListener('click', () => {
   AudioMgr.sfx('click');
   closePause();
-  if (mode === 'quest') { inChapter2 ? startChapter2() : startQuest(false); }
+  if (mode === 'quest') { startQuest(false); }
   else startGame();
 });
 document.getElementById('pauseMenuBtn').addEventListener('click', () => {
@@ -3806,6 +2178,41 @@ document.getElementById('pauseMenuBtn').addEventListener('click', () => {
   closePause();
   showScreen('menu');
 });
+
+/* ===================== KONTROL CASTLE MODE ===================== */
+(function setupCastleControls() {
+  const stick = document.getElementById('castleJoystick');
+  const knob = document.getElementById('castleJoystickKnob');
+  let dragging = false;
+  const maxR = 32;
+  function setKnob(dx, dy) {
+    const dist = Math.min(maxR, Math.sqrt(dx * dx + dy * dy));
+    const ang = Math.atan2(dy, dx);
+    const kx = Math.cos(ang) * dist, ky = Math.sin(ang) * dist;
+    knob.style.transform = `translate(${kx}px, ${ky}px)`;
+    castle.analogX = kx / maxR;
+  }
+  function resetKnob() {
+    knob.style.transform = 'translate(0,0)';
+    castle.analogX = 0;
+  }
+  function handleMove(clientX) {
+    const rect = stick.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    setKnob(clientX - cx, 0);
+  }
+  stick.addEventListener('touchstart', (e) => { e.preventDefault(); dragging = true; handleMove(e.touches[0].clientX); }, { passive: false });
+  stick.addEventListener('touchmove', (e) => { e.preventDefault(); if (dragging) handleMove(e.touches[0].clientX); }, { passive: false });
+  stick.addEventListener('touchend', (e) => { e.preventDefault(); dragging = false; resetKnob(); }, { passive: false });
+  stick.addEventListener('mousedown', (e) => { dragging = true; handleMove(e.clientX); });
+  window.addEventListener('mousemove', (e) => { if (dragging) handleMove(e.clientX); });
+  window.addEventListener('mouseup', () => { if (dragging) { dragging = false; resetKnob(); } });
+
+  document.getElementById('castleJumpBtn').addEventListener('click', () => jump());
+  [0, 1, 2].forEach(i => {
+    document.getElementById('castleAtk' + i).addEventListener('click', () => castleAttack(i));
+  });
+})();
 
 /* ===================== SCREEN MANAGEMENT ===================== */
 function showScreen(name) {
@@ -3816,7 +2223,7 @@ function showScreen(name) {
   gameover.classList.remove('active');
   hud.style.display = 'none';
   questHud.style.display = 'none';
-  attackBtn.classList.remove('ready');
+  document.getElementById('castleControls').classList.remove('visible');
   if (name !== 'playing') bossBarWrap.style.display = 'none';
   if (name !== 'playing') { document.getElementById('pauseBtn').classList.remove('visible'); paused = false; document.getElementById('pauseOverlay').classList.remove('active'); }
   else { document.getElementById('pauseBtn').classList.add('visible'); }
@@ -3828,8 +2235,8 @@ function showScreen(name) {
   if (name === 'playing') {
     if (mode === 'quest') {
       questHud.style.display = 'flex';
-      if (qUnlockedSkills.length || inChapter2) attackBtn.classList.add('ready');
-      if (qBossActive) bossBarWrap.style.display = 'block';
+      document.getElementById('castleControls').classList.add('visible');
+      if (castle.bossActive) bossBarWrap.style.display = 'block';
     } else {
       hud.style.display = 'flex';
     }
@@ -3849,27 +2256,14 @@ function refreshLobbyStats() {
   const continueBtn = document.getElementById('questContinueBtn');
   const badge = document.getElementById('questStatusBadge');
   const questBtn = document.getElementById('modeQuestBtn');
-  const qp = data.questProgress;
-  if (data.questCompleted) {
-    continueBtn.style.display = 'none';
-    if (data.chapter2StageDone) {
-      questBtn.textContent = '🔒 CHAPTER 3 — SEGERA';
-      badge.style.display = 'block';
-      badge.textContent = `🏆 CHAPTER 2 TAMAT — Total mantra: ${data.mantraCount}`;
-    } else {
-      questBtn.textContent = '🐉 CHAPTER 2 — TERBANG!';
-      badge.style.display = 'block';
-      badge.textContent = `🐉 NAGA SEJATI — Mantra terkumpul: ${data.mantraCount}`;
-    }
+  continueBtn.style.display = 'none';
+  if (data.castleProgress && data.castleProgress.completed) {
+    questBtn.textContent = '🏰 KASTIL TUA — TAMAT';
+    badge.style.display = 'block';
+    badge.textContent = `🏆 Story Mode tamat — Total mantra: ${data.castleMantraCount || 0}`;
   } else {
-    questBtn.textContent = '📖 STORY MODE';
+    questBtn.textContent = '🏰 STORY MODE: KASTIL TUA';
     badge.style.display = 'none';
-    if (qp && qp.mapIndex > 0 && qp.mapIndex < MAPS.length) {
-      continueBtn.style.display = 'block';
-      continueBtn.textContent = `▶ LANJUTKAN — ${MAPS[qp.mapIndex].name}`;
-    } else {
-      continueBtn.style.display = 'none';
-    }
   }
 }
 
@@ -4014,30 +2408,13 @@ function renderTrailShop() {
 document.getElementById('playBtn').addEventListener('click', startGame);
 document.getElementById('modeBiasaBtn').addEventListener('click', startGame);
 document.getElementById('modeQuestBtn').addEventListener('click', () => {
-  if (data.questCompleted) {
-    if (!data.chapter2IntroSeen) {
-      playChapter2Intro();
-    } else if (data.chapter2StageDone) {
-      // Chapter 2 sudah tamat: dikunci sama seperti Chapter 1, tidak bisa diulang.
-      queueComicPage('CHAPTER 2 TAMAT', [
-        panel(sceneComingSoonChapter3, null)
-      ], `Kamu sudah menamatkan Puncak Langit dan mengumpulkan seluruh mantra kuno di sana!\nSang naga kini telah berevolusi dengan wujud barunya yang berkilau ungu-keemasan.\n\nTotal mantra terkumpul: ${data.mantraCount}\n\nChapter 2 tidak bisa dimainkan ulang dari sini. Nantikan Chapter 3 yang akan datang!`, () => {}, 'OKE');
-      playNextStory();
-    } else {
-      startChapter2();
-    }
+  if (data.castleProgress && data.castleProgress.completed) {
+    alert('Kamu sudah menamatkan Story Mode: Kastil Tua! Total mantra terkumpul: ' + (data.castleMantraCount || 0) + '. Nantikan babak selanjutnya!');
     return;
   }
-  const qp = data.questProgress;
-  if (qp && qp.mapIndex > 0) {
-    if (confirm('Progres story mode yang tersimpan akan hilang. Mulai petualangan baru dari awal?')) {
-      startQuest(true);
-    }
-  } else {
-    startQuest(true);
-  }
+  startQuest(true);
 });
-document.getElementById('questContinueBtn').addEventListener('click', () => startQuest(false));
+document.getElementById('questContinueBtn').addEventListener('click', () => startQuest(true));
 document.getElementById('shopBtnLobby').addEventListener('click', () => showScreen('shop'));
 document.getElementById('modeFabBtn').addEventListener('click', () => showScreen('modeSelect'));
 document.getElementById('modeSelectBackBtn').addEventListener('click', () => showScreen('menu'));
@@ -4052,7 +2429,7 @@ document.querySelectorAll('.shop-tab-btn').forEach(btn => {
   });
 });
 document.getElementById('retryBtn').addEventListener('click', () => {
-  if (mode === 'quest') { inChapter2 ? startChapter2() : startQuest(false); }
+  if (mode === 'quest') { startQuest(false); }
   else startGame();
 });
 document.getElementById('goLobbyBtn').addEventListener('click', () => showScreen('menu'));
@@ -4096,7 +2473,6 @@ document.getElementById('resetDataBtn').addEventListener('click', () => {
 /* ===================== GAME FLOW ===================== */
 function startGame() {
   mode = 'normal';
-  inChapter2 = false;
   dino.w = 40; dino.h = 40;
   obstacles = [];
   coins = [];
@@ -4361,8 +2737,21 @@ document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '4.2';
+const APP_VERSION = '5.0';
 const NEWS_LIST = [
+  {
+    version: '5.0',
+    date: '29 Agu 2026',
+    title: '🏰 Story Mode Baru Total: Kastil Tua!',
+    items: [
+      '🧟 Story Mode dirombak total — dino terjebak di kastil tua berisi zombie & vampir!',
+      '🕹️ Kontrol penuh: joystick analog + tombol lompat + 3 slot serangan.',
+      '❤️ Sistem nyawa baru: HP bar 150, bisa nambah lewat Mantra Nyawa.',
+      '✨ Mantra Skill membuka slot serangan baru (awalnya cuma 1 dari 3 yang aktif).',
+      '🏰 4 lantai: zombie biasa → zombie mutasi → boss zombie raksasa → campuran + Raja Vampir!',
+      '⚠️ Chapter 2 lama (naga terbang) sudah dihapus, digantikan cerita baru ini.'
+    ]
+  },
   {
     version: '4.2',
     date: '28 Agu 2026',
@@ -5649,13 +4038,8 @@ function draw() {
 function loop() {
   if (state === 'playing' && !paused) {
     if (mode === 'quest') {
-      if (inChapter2) {
-        q2Update();
-        q2Draw();
-      } else {
-        questUpdate();
-        questDraw();
-      }
+      castleUpdate();
+      castleDraw();
     } else {
       update();
       draw();

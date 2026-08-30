@@ -105,6 +105,10 @@ body[data-gfx="rendah"] .buff-chip {
 
   /* Tombol Jeda (pause) — sekarang jadi satu grup dengan SKOR di pojok kiri atas */
   #pauseBtn {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    left: 16px;
+    z-index: 9;
     width: 34px; height: 34px;
     border-radius: 50%;
     border: 1.5px solid rgba(255,255,255,0.7);
@@ -1353,29 +1357,44 @@ body[data-gfx="rendah"] .buff-chip {
     position: fixed;
     top: 0; left: 0; right: 0;
     display: none;
-    justify-content: space-between;
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
     padding: max(10px, env(safe-area-inset-top)) 14px 0 14px;
     z-index: 5;
     pointer-events: none;
   }
-  #questHud .pill {
-    background: rgba(255,255,255,0.9);
-    border: 1.5px solid rgba(255,255,255,0.6);
-    border-radius: 20px;
-    padding: 7px 13px;
-    font-size: 12px;
-    font-weight: bold;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
-    margin-bottom: 7px;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
+  .castle-floor-pill {
+    background: rgba(20,14,28,0.85);
+    color: #e8d9ff;
+    border: 1.5px solid rgba(184,166,255,0.5);
+    border-radius: 16px;
+    padding: 5px 14px;
+    font-family: 'Baloo 2', 'Nunito', sans-serif;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
   }
-  #qLives { letter-spacing: 2px; color: #e5484d; }
-  #qMapName { display: block; font-size: 11px; color: #444; }
+  .castle-hp-wrap, .castle-progress-wrap { width: min(90%, 340px); }
+  .castle-hp-label, .castle-progress-label {
+    display: flex; justify-content: space-between;
+    font-size: 10px; font-weight: bold; color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    margin-bottom: 2px;
+  }
+  .castle-progress-label { justify-content: center; color: #e8d9ff; }
+  .castle-hp-track, .castle-progress-track {
+    width: 100%; height: 10px;
+    background: rgba(0,0,0,0.45);
+    border-radius: 6px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.3);
+  }
+  .castle-hp-fill { height: 100%; width: 100%; background: #5cd65c; border-radius: 6px; transition: width 0.15s ease, background 0.2s ease; }
+  .castle-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #b8a6ff, #7ee696); border-radius: 6px; transition: width 0.2s ease; }
+
   #bossBarWrap {
     position: fixed;
-    top: max(10px, env(safe-area-inset-top));
+    top: max(78px, calc(env(safe-area-inset-top) + 78px));
     left: 50%; transform: translateX(-50%);
     width: min(70%, 320px);
     display: none;
@@ -1386,28 +1405,64 @@ body[data-gfx="rendah"] .buff-chip {
   #bossBarTrack { width: 100%; height: 11px; background: rgba(0,0,0,0.4); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.4); box-shadow: 0 3px 8px rgba(0,0,0,0.25); }
   #bossBarFill { height: 100%; width: 100%; background: linear-gradient(90deg, #ff5d5d, #b8161a); border-radius: 6px; transition: width 0.15s ease; }
 
-  #attackBtn {
+  /* ===== Kontrol Castle Mode: joystick kiri + lompat & 3 serang kanan ===== */
+  #castleControls {
     position: fixed;
-    right: 20px; bottom: max(24px, env(safe-area-inset-bottom));
-    width: 74px; height: 74px;
+    left: 0; right: 0; bottom: 0;
+    display: none;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 0 18px max(20px, env(safe-area-inset-bottom));
+    z-index: 8;
+  }
+  #castleControls.visible { display: flex; }
+  .castle-joystick {
+    width: 88px; height: 88px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.16);
+    border: 2px solid rgba(255,255,255,0.4);
+    position: relative;
+    touch-action: none;
+  }
+  .castle-joystick-knob {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 40px; height: 40px;
+    margin: -20px 0 0 -20px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffffff, #cfcfe0);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
+    transition: transform 0.05s linear;
+  }
+  .castle-action-cluster { display: flex; align-items: flex-end; gap: 10px; }
+  .castle-jump-btn {
+    width: 62px; height: 62px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #7ec8ff, #2f7fcf);
+    border: 3px solid rgba(255,255,255,0.75);
+    color: #fff;
+    font-size: 9px;
+    font-weight: bold;
+    line-height: 1.2;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+  }
+  .castle-jump-btn:active { transform: scale(0.9); }
+  .castle-attack-row { display: flex; gap: 8px; }
+  .castle-attack-btn {
+    width: 52px; height: 52px;
     border-radius: 50%;
     background: radial-gradient(circle at 35% 30%, #ff8a5c, #d94f24);
     border: 3px solid rgba(255,255,255,0.75);
     color: #fff;
-    font-family: 'Baloo 2', 'Nunito', sans-serif;
-    font-weight: bold;
-    font-size: 11px;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    z-index: 8;
+    font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
     box-shadow: 0 4px 12px rgba(0,0,0,0.35);
   }
-  #attackBtn.ready { display: flex; animation: attackPulse 1.6s ease-in-out infinite; }
-  #attackBtn:active { transform: scale(0.9); }
-  @keyframes attackPulse {
-    0%, 100% { box-shadow: 0 4px 12px rgba(0,0,0,0.35), 0 0 0 0 rgba(255,138,92,0.5); }
-    50% { box-shadow: 0 4px 12px rgba(0,0,0,0.35), 0 0 0 8px rgba(255,138,92,0); }
+  .castle-attack-btn:active { transform: scale(0.9); }
+  .castle-attack-btn.locked {
+    background: linear-gradient(160deg, #6a6a72, #3f3f46);
+    font-size: 16px;
+    opacity: 0.75;
   }
 
   #skillToast {

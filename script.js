@@ -999,7 +999,8 @@ function castleVictory() {
 }
 /* ===================== SINEMATIK KEMENANGAN CHAPTER 1 =====================
    Urutan: Raja Vampir tumbang -> portal raksasa muncul nutupin ruangan ->
-   dino kesedot masuk -> animasi terowongan portal -> mendarat di makam kuno ->
+   dino kesedot masuk -> animasi terowongan portal -> mendarat di ALAM BAWAH
+   SADAR SANG RAJA VAMPIR (bukan makam) ->
    teks "COMING SOON CHAPTER 2". */
 function castleStartVictoryCutscene() {
   document.getElementById('castleControls').classList.remove('visible');
@@ -1082,29 +1083,85 @@ function castleDrawVortexTunnel(t) {
   }
   ctx.restore();
 }
-function castleDrawTombBackground() {
-  const g = ctx.createLinearGradient(0, 0, 0, VH);
-  g.addColorStop(0, '#1a1420'); g.addColorStop(1, '#0a070d');
+function castleDrawSubconsciousBackground() {
+  // ===== ALAM BAWAH SADAR SANG RAJA VAMPIR =====
+  // Latar Chapter 2: bukan makam, tapi ruang batin gelap penuh kabut jiwa &
+  // pecahan ingatan. Ada siluet takhta jauh dijaga 6 bayangan (foreshadow
+  // 6 manifestasi dosa lain) dan mahkota emas retak melayang (foreshadow AURELION).
+  const g = ctx.createRadialGradient(VW * 0.5, VH * 0.35, 10, VW * 0.5, VH * 0.35, Math.max(VW, VH) * 0.9);
+  g.addColorStop(0, '#241733'); g.addColorStop(0.55, '#150c20'); g.addColorStop(1, '#050308');
   ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
-  ctx.fillStyle = '#2c2430';
-  ctx.fillRect(VW * 0.06, GROUND_Y * 0.15, VW * 0.09, GROUND_Y * 0.85);
-  ctx.fillRect(VW * 0.85, GROUND_Y * 0.15, VW * 0.09, GROUND_Y * 0.85);
-  const moon = ctx.createRadialGradient(VW * 0.5, VH * 0.14, 4, VW * 0.5, VH * 0.14, 70);
-  moon.addColorStop(0, 'rgba(200,190,255,0.5)'); moon.addColorStop(1, 'rgba(200,190,255,0)');
-  ctx.fillStyle = moon; ctx.beginPath(); ctx.arc(VW * 0.5, VH * 0.14, 70, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#241d29'; ctx.fillRect(0, GROUND_Y, VW, VH - GROUND_Y);
-  ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
-  for (let x = 0; x < VW; x += 36) { ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x - 10, VH); ctx.stroke(); }
-  ctx.fillStyle = '#3a3040';
-  roundRectPath(ctx, VW * 0.36, GROUND_Y - 46, VW * 0.28, 40, 6);
+
+  // kabut jiwa berlapis, melayang pelan
+  for (let layer = 0; layer < 3; layer++) {
+    ctx.save();
+    ctx.globalAlpha = 0.10 + layer * 0.05;
+    ctx.fillStyle = layer % 2 === 0 ? '#7a5bd6' : '#3f2a63';
+    const wob = Math.sin(frame * 0.006 + layer) * 20;
+    ctx.beginPath();
+    ctx.ellipse(VW * 0.5 + wob, GROUND_Y * (0.4 + layer * 0.16), VW * 0.75, 46 + layer * 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // siluet takhta jauh + 6 bayangan penjaga (foreshadow 6 manifestasi dosa lain)
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = '#0a0610';
+  roundRectPath(ctx, VW * 0.44, GROUND_Y - 58, VW * 0.12, 50, 4);
   ctx.fill();
-  ctx.strokeStyle = 'rgba(184,166,255,0.35)'; ctx.lineWidth = 2;
-  ctx.strokeRect(VW * 0.36 + 6, GROUND_Y - 40, VW * 0.28 - 12, 28);
-  ctx.fillStyle = 'rgba(200,190,255,0.15)';
-  for (let i = 0; i < 14; i++) {
-    const x = (i * 53 + frame * 0.15) % VW;
-    const y = (i * 37) % (GROUND_Y - 20) + 10;
-    ctx.beginPath(); ctx.arc(x, y, 1.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillRect(VW * 0.47, GROUND_Y - 78, VW * 0.06, 24);
+  for (let i = 0; i < 6; i++) {
+    const gx = VW * (0.14 + i * 0.145);
+    ctx.globalAlpha = 0.32;
+    ctx.fillStyle = '#0a0610';
+    ctx.beginPath();
+    ctx.ellipse(gx, GROUND_Y - 20, 9, 20, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath(); ctx.arc(gx, GROUND_Y - 40, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.7 + Math.sin(frame * 0.05 + i) * 0.2;
+    ctx.fillStyle = '#ff3b4d';
+    ctx.beginPath(); ctx.arc(gx - 2, GROUND_Y - 41, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(gx + 2, GROUND_Y - 41, 1, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+
+  // mahkota emas retak melayang (foreshadow AURELION - Kesombongan)
+  ctx.save();
+  const cx = VW * 0.5, cy = VH * 0.15 + Math.sin(frame * 0.02) * 6;
+  ctx.globalAlpha = 0.55;
+  ctx.translate(cx, cy);
+  ctx.rotate(Math.sin(frame * 0.008) * 0.06);
+  ctx.strokeStyle = '#e8c15c'; ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(-20, 8); ctx.lineTo(-20, -4); ctx.lineTo(-12, -14); ctx.lineTo(-4, -2);
+  ctx.lineTo(0, -16); ctx.lineTo(4, -2); ctx.lineTo(12, -14); ctx.lineTo(20, -4); ctx.lineTo(20, 8);
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(20,10,10,0.7)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(2, 6); ctx.stroke(); // retakan
+  ctx.restore();
+
+  // lantai bawah sadar: pecahan kaca ingatan melayang, bukan lantai batu padat
+  ctx.fillStyle = 'rgba(10,6,16,0.55)';
+  ctx.fillRect(0, GROUND_Y, VW, VH - GROUND_Y);
+  for (let i = 0; i < 10; i++) {
+    const x = (i * 61 + frame * 0.2) % VW;
+    const y = GROUND_Y + 10 + (i * 13) % (VH - GROUND_Y - 10);
+    ctx.save();
+    ctx.globalAlpha = 0.2;
+    ctx.translate(x, y);
+    ctx.rotate(i);
+    ctx.fillStyle = '#b8a6ff';
+    ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(0, -6); ctx.lineTo(5, 0); ctx.lineTo(0, 6); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
+  // partikel jiwa melayang naik
+  ctx.fillStyle = 'rgba(200,190,255,0.25)';
+  for (let i = 0; i < 16; i++) {
+    const x = (i * 47 + Math.sin(frame * 0.02 + i) * 12) % VW;
+    const y = GROUND_Y - ((frame * 0.6 + i * 40) % (GROUND_Y - 10));
+    ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill();
   }
 }
 function castleDrawLandingDust(x, y, p) {
@@ -1123,19 +1180,22 @@ function castleDrawComingSoonText(t) {
   const ease = castleEaseOutCubic(p);
   ctx.save();
   ctx.globalAlpha = ease;
-  ctx.translate(VW / 2, VH * 0.32);
+  ctx.translate(VW / 2, VH * 0.26);
   ctx.scale(0.7 + ease * 0.3, 0.7 + ease * 0.3);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.shadowColor = 'rgba(184,166,255,0.9)'; ctx.shadowBlur = 18;
   ctx.fillStyle = '#e8d9ff';
   ctx.font = "bold 15px 'Baloo 2', sans-serif";
-  ctx.fillText('👑 KASTIL TAMAT 👑', 0, -22);
+  ctx.fillText('👑 KASTIL TAMAT 👑', 0, -40);
+  ctx.font = "11px 'Baloo 2', sans-serif";
+  ctx.fillStyle = 'rgba(184,166,255,0.85)';
+  ctx.fillText('ALAM BAWAH SADAR SANG RAJA VAMPIR', 0, -20);
   ctx.font = "bold 22px 'Baloo 2', sans-serif";
   ctx.fillStyle = '#fff3b0';
-  ctx.fillText('COMING SOON', 0, 4);
+  ctx.fillText('COMING SOON', 0, 8);
   ctx.font = "bold 18px 'Baloo 2', sans-serif";
   ctx.fillStyle = '#b8a6ff';
-  ctx.fillText('CHAPTER 2', 0, 26);
+  ctx.fillText('CHAPTER 2', 0, 30);
   ctx.restore();
   if (t > 70) {
     ctx.save();
@@ -1143,7 +1203,7 @@ function castleDrawComingSoonText(t) {
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
     ctx.font = "11px 'Baloo 2', sans-serif";
-    ctx.fillText('(ketuk layar buat lanjut)', VW / 2, VH * 0.32 + 52);
+    ctx.fillText('(ketuk layar buat lanjut)', VW / 2, VH * 0.26 + 60);
     ctx.restore();
   }
 }
@@ -1173,7 +1233,7 @@ function castleDrawVictoryCutscene() {
   } else if (vc.phase === 'travel') {
     castleDrawVortexTunnel(vc.t);
   } else if (vc.phase === 'land') {
-    castleDrawTombBackground();
+    castleDrawSubconsciousBackground();
     const p = Math.min(1, vc.t / 65);
     if (p < 0.4) {
       ctx.save(); ctx.globalAlpha = 1 - p / 0.4; castleDrawVortexTunnel(999); ctx.restore();
@@ -1187,10 +1247,10 @@ function castleDrawVictoryCutscene() {
     ctx.restore();
     if (fallP > 0.85) castleDrawLandingDust(VW / 2, GROUND_Y, (fallP - 0.85) / 0.15);
   } else if (vc.phase === 'tomb') {
-    castleDrawTombBackground();
+    castleDrawSubconsciousBackground();
     drawDinoShape(ctx, VW / 2 - dino.w / 2, GROUND_Y - dino.h, dino.w, dino.h, s, false, frame, 1);
   } else if (vc.phase === 'text') {
-    castleDrawTombBackground();
+    castleDrawSubconsciousBackground();
     drawDinoShape(ctx, VW / 2 - dino.w / 2, GROUND_Y - dino.h, dino.w, dino.h, s, false, frame, 1);
     castleDrawComingSoonText(vc.t);
   }
@@ -1359,13 +1419,24 @@ function castleUpdate() {
       castle.boss = null;
       castle.bossActive = false;
       bossBarWrap.style.display = 'none';
-      if (f.isBossFloor) { castleSpawnPortal(); }
-      else { castleVictory(); }
+      if (f.isBossFloor) {
+        castleSpawnPortal();
+      } else {
+        castleVictory();
+        // Stop di sini — kalau lanjut ke bawah, blok "trigger Raja Vampir di lantai 4"
+        // bakal langsung ngecek lagi di frame yang SAMA. Karena castle.score masih
+        // >= kingTarget (belum direset) dan castle.bossActive baru aja jadi false,
+        // kondisinya ke-anggap "belum ada raja" -> RAJA VAMPIR KE-SPAWN ULANG full HP,
+        // itu sebabnya HP bar-nya nongol lagi dan gak pernah hilang selama animasi.
+        castleUpdateHpBar();
+        castleUpdateProgress();
+        return;
+      }
     }
   }
 
-  // trigger Raja Vampir di lantai 4
-  if (castle.floor === 4 && !castle.bossActive && castle.score >= f.kingTarget) {
+  // trigger Raja Vampir di lantai 4 (dijaga: jangan spawn lagi kalau Kastil sudah tamat)
+  if (castle.floor === 4 && !castle.completed && !castle.bossActive && castle.score >= f.kingTarget) {
     castle.enemies = [];
     castleSpawnBoss('vampireKing');
   }
@@ -3164,16 +3235,26 @@ document.getElementById('hudSideToggleBtn').addEventListener('click', () => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '5.4';
+const APP_VERSION = '5.6';
 const NEWS_LIST = [
   {
-    version: '5.4',
+    version: '5.6',
+    date: '30 Agu 2026',
+    title: '🌑 Landing Akhir Chapter 1 Diganti: Alam Bawah Sadar!',
+    items: [
+      '🌑 Setelah Raja Vampir tumbang, dino sekarang jatuh ke ALAM BAWAH SADAR SANG RAJA VAMPIR — bukan makam kuno lagi. Kabut jiwa, pecahan kaca ingatan melayang, siluet takhta jauh dijaga 6 bayangan, dan mahkota emas retak melayang — semua nge-foreshadow cerita Chapter 2.',
+      '📖 Lore lengkap 7 manifestasi dosa besar Raja Vampir (AURELION, GOLDRAVEN, VELARIA, MIRRORA, GORGATH, RAVAGOR, SOMNARA) sudah disimpan sebagai dokumen desain — siap dibangun jadi boss fight satu-satu di update berikutnya.'
+    ]
+  },
+  {
+    version: '5.5',
     date: '30 Agu 2026',
     title: '🏰 Story Mode: Portal Lantai, Sinematik Kemenangan & HUD Custom!',
     items: [
       '🐞 BUG FIX: kontrol Kastil (joystick, lompat, serang) kadang cuma bisa dipencet satu-satu — sekarang semua tombol bisa dipencet BARENGAN pakai jari beda.',
       '🐞 BUG FIX: dino suka lompat sendiri di Story Mode kalau layar kesentuh dikit (misal pas narik joystick) — sekarang tap-lompat cuma aktif di Mode Biasa.',
       '🐞 BUG FIX: cegah munculnya menu "copy/share" nempel pas nahan tombol kontrol kelamaan di iPhone.',
+      '🐞 BUG FIX: HP bar "darah" Raja Vampir gak ilang pas animasi kemenangan Chapter 1 — ternyata Raja Vampir sempet ke-spawn ulang sepersekian detik gara-gara skor lantai belum direset pas cutscene mulai. Sekarang bener-bener hilang total begitu dia tumbang.',
       '🌀 Naik lantai sekarang lewat PORTAL — begitu target lantai selesai, portal muncul dan kamu harus masuk dulu baru pindah lantai.',
       '👑 SINEMATIK BARU begitu Raja Vampir tumbang di Lantai 4: portal raksasa muncul nutupin ruangan, dino kesedot masuk, animasi terowongan portal, lalu mendarat di makam kuno — ditutup teks "COMING SOON CHAPTER 2"!',
       '🧟 Model zombie & 🧛 vampir dirombak total — lebih detail & seram.',

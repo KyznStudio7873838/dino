@@ -2312,9 +2312,12 @@ function jump() {
 }
 function releaseFlight() {
 }
-canvas.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive: false });
+// Tap-di-canvas buat lompat cuma berlaku di Mode Biasa — di Story Mode (Kastil) ini
+// dimatikan karena lompat sudah ada tombol sendiri, kalau dibiarkan aktif tiap
+// sentuhan di layar (termasuk gak sengaja pas narik joystick) bikin dino lompat sendiri.
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); if (mode !== 'quest') jump(); }, { passive: false });
 canvas.addEventListener('touchend', (e) => { e.preventDefault(); releaseFlight(); }, { passive: false });
-canvas.addEventListener('mousedown', jump);
+canvas.addEventListener('mousedown', () => { if (mode !== 'quest') jump(); });
 canvas.addEventListener('mouseup', releaseFlight);
 
 /* ===================== JEDA (PAUSE) MANUAL ===================== */
@@ -2354,13 +2357,12 @@ document.getElementById('pauseMenuBtn').addEventListener('click', () => {
 (function setupCastleControls() {
   const stick = document.getElementById('castleJoystick');
   const knob = document.getElementById('castleJoystickKnob');
-  let dragging = false;
   const maxR = 32;
-  function setKnob(dx, dy) {
-    const dist = Math.min(maxR, Math.sqrt(dx * dx + dy * dy));
-    const ang = Math.atan2(dy, dx);
-    const kx = Math.cos(ang) * dist, ky = Math.sin(ang) * dist;
-    knob.style.transform = `translate(${kx}px, ${ky}px)`;
+  let stickPointerId = null;
+  function setKnob(dx) {
+    const dist = Math.min(maxR, Math.abs(dx));
+    const kx = Math.sign(dx) * dist;
+    knob.style.transform = `translate(${kx}px, 0)`;
     castle.analogX = kx / maxR;
   }
   function resetKnob() {
@@ -2370,18 +2372,34 @@ document.getElementById('pauseMenuBtn').addEventListener('click', () => {
   function handleMove(clientX) {
     const rect = stick.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
-    setKnob(clientX - cx, 0);
+    setKnob(clientX - cx);
   }
-  stick.addEventListener('touchstart', (e) => { e.preventDefault(); dragging = true; handleMove(e.touches[0].clientX); }, { passive: false });
-  stick.addEventListener('touchmove', (e) => { e.preventDefault(); if (dragging) handleMove(e.touches[0].clientX); }, { passive: false });
-  stick.addEventListener('touchend', (e) => { e.preventDefault(); dragging = false; resetKnob(); }, { passive: false });
-  stick.addEventListener('mousedown', (e) => { dragging = true; handleMove(e.clientX); });
-  window.addEventListener('mousemove', (e) => { if (dragging) handleMove(e.clientX); });
-  window.addEventListener('mouseup', () => { if (dragging) { dragging = false; resetKnob(); } });
+  // Pakai Pointer Events (bukan click/touchstart biasa) supaya joystick dan
+  // tombol lompat/serang bisa dipencet BARENGAN oleh jari berbeda tanpa saling
+  // "rebutan" satu sentuhan — ini yang bikin dulu kerasa cuma bisa 1 tombol aktif.
+  stick.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    stickPointerId = e.pointerId;
+    if (stick.setPointerCapture) stick.setPointerCapture(e.pointerId);
+    handleMove(e.clientX);
+  });
+  stick.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== stickPointerId) return;
+    e.preventDefault();
+    handleMove(e.clientX);
+  });
+  function endStick(e) {
+    if (e.pointerId !== stickPointerId) return;
+    stickPointerId = null;
+    resetKnob();
+  }
+  stick.addEventListener('pointerup', endStick);
+  stick.addEventListener('pointercancel', endStick);
+  stick.addEventListener('pointerleave', (e) => { if (e.pointerId === stickPointerId) endStick(e); });
 
-  document.getElementById('castleJumpBtn').addEventListener('click', () => jump());
+  document.getElementById('castleJumpBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
   [0, 1, 2].forEach(i => {
-    document.getElementById('castleAtk' + i).addEventListener('click', () => castleAttack(i));
+    document.getElementById('castleAtk' + i).addEventListener('pointerdown', (e) => { e.preventDefault(); castleAttack(i); });
   });
 })();
 
@@ -2855,6 +2873,22 @@ document.getElementById('dailyOverlay').addEventListener('click', (e) => {
 });
 
 /* ===================== PENGATURAN (musik & suara) ===================== */
+let hudScale = Math.min(1.3, Math.max(0.8, parseFloat(localStorage.getItem('dino_hudScale') || '1')));
+let hudOpacity = parseFloat(localStorage.getItem('dino_hudOpacity') || '1');
+let hudSide = localStorage.getItem('dino_hudSide') || 'left'; // posisi joystick: 'left' atau 'right'
+function applyHudSettings() {
+  const targets = [document.getElementById('castleControls'), document.getElementById('hudPreviewControls')];
+  targets.forEach(el => {
+    if (!el) return;
+    el.style.setProperty('--hud-scale', hudScale);
+    el.style.setProperty('--hud-opacity', hudOpacity);
+    el.classList.toggle('hud-swap', hudSide === 'right');
+  });
+}
+function setHudScale(v) { hudScale = v; localStorage.setItem('dino_hudScale', String(v)); applyHudSettings(); }
+function setHudOpacity(v) { hudOpacity = v; localStorage.setItem('dino_hudOpacity', String(v)); applyHudSettings(); }
+function setHudSide(v) { hudSide = v; localStorage.setItem('dino_hudSide', v); applyHudSettings(); }
+applyHudSettings();
 function refreshSettingsUI() {
   const musicBtn = document.getElementById('musicToggleBtn');
   const sfxBtn = document.getElementById('sfxToggleBtn');
@@ -2868,6 +2902,11 @@ function refreshSettingsUI() {
   document.querySelectorAll('.gfx-q-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.q === gfxQuality);
   });
+  document.getElementById('hudScaleSlider').value = hudScale;
+  document.getElementById('hudOpacitySlider').value = hudOpacity;
+  const hudSideBtn = document.getElementById('hudSideToggleBtn');
+  hudSideBtn.textContent = hudSide === 'left' ? 'KIRI' : 'KANAN';
+  hudSideBtn.classList.toggle('off', hudSide === 'right');
 }
 document.querySelectorAll('.gfx-q-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -2902,14 +2941,46 @@ document.getElementById('musicVolSlider').addEventListener('input', (e) => {
 document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
   AudioMgr.setSfxVol(parseFloat(e.target.value));
 });
+document.getElementById('hudScaleSlider').addEventListener('input', (e) => {
+  setHudScale(parseFloat(e.target.value));
+});
+document.getElementById('hudOpacitySlider').addEventListener('input', (e) => {
+  setHudOpacity(parseFloat(e.target.value));
+});
+document.getElementById('hudSideToggleBtn').addEventListener('click', () => {
+  setHudSide(hudSide === 'left' ? 'right' : 'left');
+  refreshSettingsUI();
+  AudioMgr.sfx('click');
+});
 
 /* ===================== BERITA / UPDATE LOG =====================
    Setiap kali game ini dirilis dengan fitur/perbaikan baru, cukup tambah
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '5.1';
+const APP_VERSION = '5.3';
 const NEWS_LIST = [
+  {
+    version: '5.3',
+    date: '30 Agu 2026',
+    title: '🐞 Bug Fix Lanjutan + Pratinjau HUD Live!',
+    items: [
+      '🐞 BUG FIX: dino suka lompat sendiri di Story Mode kalau layar kesentuh dikit (misal pas narik joystick) — sekarang tap-lompat cuma aktif di Mode Biasa, Story Mode murni pakai tombol lompat sendiri.',
+      '🐞 BUG FIX: cegah munculnya menu "copy/share" nempel pas nahan tombol kontrol kelamaan di iPhone.',
+      '🎮 Pengaturan HUD Kastil sekarang ada kotak PRATINJAU LIVE — langsung kelihatan perubahan ukuran/transparansi/posisi joystick sebelum masuk game.',
+      '📏 Batas maksimal ukuran kontrol disesuaikan biar gak numpuk/kepotong di HP layar sempit.'
+    ]
+  },
+  {
+    version: '5.2',
+    date: '30 Agu 2026',
+    title: '🎮 Perbaikan Kontrol Kastil + HUD Bisa Diatur Sendiri!',
+    items: [
+      '🐞 BUG FIX: kontrol Kastil (joystick, lompat, serang) kadang cuma bisa dipencet satu-satu — sekarang semua tombol bisa dipencet BARENGAN pakai jari beda.',
+      '🎮 Fitur baru di Pengaturan: HUD Kastil bisa diatur sendiri — ukuran kontrol, transparansi, sampai posisi joystick (kiri/kanan).',
+      '📐 Tombol kontrol Kastil dibesarkan biar gak kekecilan lagi.'
+    ]
+  },
   {
     version: '5.1',
     date: '30 Agu 2026',

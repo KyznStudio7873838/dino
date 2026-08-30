@@ -919,7 +919,7 @@ let castle = {
   mantraTimer: 0, nextMantraGap: 260,
   attackCooldowns: [0, 0, 0],
   invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false,
-  portal: null, floorCleared: false
+  portal: null, floorCleared: false, victoryCutscene: null
 };
 function castleResetRun() {
   castle = {
@@ -931,7 +931,7 @@ function castleResetRun() {
     mantraTimer: 0, nextMantraGap: 260,
     attackCooldowns: [0, 0, 0],
     invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false,
-    portal: null, floorCleared: false
+    portal: null, floorCleared: false, victoryCutscene: null
   };
 }
 function castleFloorDef() { return CASTLE_FLOORS[castle.floor]; }
@@ -994,10 +994,206 @@ function castleVictory() {
   castle.completed = true;
   state = 'playing';
   data.castleProgress = { completed: true };
-  data.castleMantraCount = (data.castleMantraCount || 0) + 0;
   saveData();
-  castleToast('👑 RAJA VAMPIR TUMBANG! KASTIL TAMAT!');
-  setTimeout(() => { castleEndGame(true); }, 1400);
+  castleStartVictoryCutscene();
+}
+/* ===================== SINEMATIK KEMENANGAN CHAPTER 1 =====================
+   Urutan: Raja Vampir tumbang -> portal raksasa muncul nutupin ruangan ->
+   dino kesedot masuk -> animasi terowongan portal -> mendarat di makam kuno ->
+   teks "COMING SOON CHAPTER 2". */
+function castleStartVictoryCutscene() {
+  document.getElementById('castleControls').classList.remove('visible');
+  document.getElementById('questHud').style.display = 'none';
+  bossBarWrap.style.display = 'none';
+  castle.victoryCutscene = {
+    phase: 'grow', t: 0,
+    portalX: VW / 2, portalY: GROUND_Y - 30,
+    dinoStartX: dino.x, dinoStartY: dino.y
+  };
+  AudioMgr.sfx('unlock');
+}
+function castleFinishVictoryCutscene() {
+  castle.victoryCutscene = null;
+  castleEndGame(true);
+}
+function castleUpdateVictoryCutscene() {
+  frame++;
+  const vc = castle.victoryCutscene;
+  vc.t++;
+  if (vc.phase === 'grow' && vc.t > 55) { vc.phase = 'suck'; vc.t = 0; }
+  else if (vc.phase === 'suck' && vc.t > 50) { vc.phase = 'travel'; vc.t = 0; AudioMgr.sfx('unlock'); }
+  else if (vc.phase === 'travel' && vc.t > 100) { vc.phase = 'land'; vc.t = 0; }
+  else if (vc.phase === 'land' && vc.t > 65) { vc.phase = 'tomb'; vc.t = 0; }
+  else if (vc.phase === 'tomb' && vc.t > 55) { vc.phase = 'text'; vc.t = 0; }
+  else if (vc.phase === 'text' && vc.t > 320) { castleFinishVictoryCutscene(); }
+}
+function castleEaseOutCubic(x) { return 1 - Math.pow(1 - x, 3); }
+function castleDrawBigPortal(cx, cy, r, t) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(10,6,16,0.4)';
+  ctx.fillRect(0, 0, VW, VH);
+  ctx.translate(cx, cy);
+  const glow = ctx.createRadialGradient(0, 0, Math.max(4, r * 0.2), 0, 0, Math.max(6, r));
+  glow.addColorStop(0, 'rgba(184,166,255,0.65)');
+  glow.addColorStop(0.7, 'rgba(120,80,220,0.35)');
+  glow.addColorStop(1, 'rgba(120,80,220,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath(); ctx.arc(0, 0, Math.max(1, r), 0, Math.PI * 2); ctx.fill();
+  for (let i = 0; i < 5; i++) {
+    const rr = r * (0.9 - i * 0.15);
+    if (rr <= 0) continue;
+    const ang = t * (i % 2 === 0 ? 0.05 : -0.06) + i;
+    ctx.strokeStyle = `rgba(${210 - i * 15},${190 - i * 10},255,${Math.max(0, 0.5 - i * 0.07)})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rr, rr * 0.94, ang, 0, Math.PI * 1.5);
+    ctx.stroke();
+  }
+  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(4, r * 0.35));
+  core.addColorStop(0, '#0d0716');
+  core.addColorStop(1, 'rgba(30,18,50,0.85)');
+  ctx.fillStyle = core;
+  ctx.beginPath(); ctx.arc(0, 0, Math.max(1, r * 0.35), 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function castleDrawVortexTunnel(t) {
+  const cx = VW / 2, cy = VH / 2;
+  const maxR = Math.max(VW, VH) * 0.75;
+  const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, maxR);
+  g.addColorStop(0, '#2a1a44'); g.addColorStop(0.5, '#160e28'); g.addColorStop(1, '#050308');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+  ctx.save();
+  ctx.translate(cx, cy);
+  for (let i = 0; i < 10; i++) {
+    const rr = (t * 3 + i * 38) % maxR;
+    const alpha = 0.5 * (1 - rr / maxR);
+    if (alpha <= 0) continue;
+    ctx.strokeStyle = `rgba(184,166,255,${alpha})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * 0.9, t * 0.02, 0, Math.PI * 2); ctx.stroke();
+  }
+  for (let i = 0; i < 24; i++) {
+    const ang = (i / 24) * Math.PI * 2 + t * 0.03;
+    const dist = (t * 6 + i * 29) % (maxR * 0.9);
+    const x = Math.cos(ang) * dist, y = Math.sin(ang) * dist * 0.9;
+    const alpha = Math.max(0, 1 - dist / (maxR * 0.9));
+    ctx.fillStyle = `rgba(230,220,255,${alpha * 0.8})`;
+    ctx.beginPath(); ctx.arc(x, y, 2 + alpha * 2, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+function castleDrawTombBackground() {
+  const g = ctx.createLinearGradient(0, 0, 0, VH);
+  g.addColorStop(0, '#1a1420'); g.addColorStop(1, '#0a070d');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+  ctx.fillStyle = '#2c2430';
+  ctx.fillRect(VW * 0.06, GROUND_Y * 0.15, VW * 0.09, GROUND_Y * 0.85);
+  ctx.fillRect(VW * 0.85, GROUND_Y * 0.15, VW * 0.09, GROUND_Y * 0.85);
+  const moon = ctx.createRadialGradient(VW * 0.5, VH * 0.14, 4, VW * 0.5, VH * 0.14, 70);
+  moon.addColorStop(0, 'rgba(200,190,255,0.5)'); moon.addColorStop(1, 'rgba(200,190,255,0)');
+  ctx.fillStyle = moon; ctx.beginPath(); ctx.arc(VW * 0.5, VH * 0.14, 70, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#241d29'; ctx.fillRect(0, GROUND_Y, VW, VH - GROUND_Y);
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
+  for (let x = 0; x < VW; x += 36) { ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x - 10, VH); ctx.stroke(); }
+  ctx.fillStyle = '#3a3040';
+  roundRectPath(ctx, VW * 0.36, GROUND_Y - 46, VW * 0.28, 40, 6);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(184,166,255,0.35)'; ctx.lineWidth = 2;
+  ctx.strokeRect(VW * 0.36 + 6, GROUND_Y - 40, VW * 0.28 - 12, 28);
+  ctx.fillStyle = 'rgba(200,190,255,0.15)';
+  for (let i = 0; i < 14; i++) {
+    const x = (i * 53 + frame * 0.15) % VW;
+    const y = (i * 37) % (GROUND_Y - 20) + 10;
+    ctx.beginPath(); ctx.arc(x, y, 1.4, 0, Math.PI * 2); ctx.fill();
+  }
+}
+function castleDrawLandingDust(x, y, p) {
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, 1 - p);
+  ctx.fillStyle = 'rgba(200,190,180,0.5)';
+  for (let i = 0; i < 8; i++) {
+    const dist = p * 30;
+    const dx = (i % 2 === 0 ? 1 : -1) * (dist + i * 2);
+    ctx.beginPath(); ctx.arc(x + dx, y - p * 8, 3 + p * 4, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+function castleDrawComingSoonText(t) {
+  const p = Math.min(1, t / 40);
+  const ease = castleEaseOutCubic(p);
+  ctx.save();
+  ctx.globalAlpha = ease;
+  ctx.translate(VW / 2, VH * 0.32);
+  ctx.scale(0.7 + ease * 0.3, 0.7 + ease * 0.3);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(184,166,255,0.9)'; ctx.shadowBlur = 18;
+  ctx.fillStyle = '#e8d9ff';
+  ctx.font = "bold 15px 'Baloo 2', sans-serif";
+  ctx.fillText('👑 KASTIL TAMAT 👑', 0, -22);
+  ctx.font = "bold 22px 'Baloo 2', sans-serif";
+  ctx.fillStyle = '#fff3b0';
+  ctx.fillText('COMING SOON', 0, 4);
+  ctx.font = "bold 18px 'Baloo 2', sans-serif";
+  ctx.fillStyle = '#b8a6ff';
+  ctx.fillText('CHAPTER 2', 0, 26);
+  ctx.restore();
+  if (t > 70) {
+    ctx.save();
+    ctx.globalAlpha = 0.55 + Math.sin(t * 0.08) * 0.25;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+    ctx.font = "11px 'Baloo 2', sans-serif";
+    ctx.fillText('(ketuk layar buat lanjut)', VW / 2, VH * 0.32 + 52);
+    ctx.restore();
+  }
+}
+function castleDrawVictoryCutscene() {
+  const vc = castle.victoryCutscene;
+  const s = getSkin(data.selectedSkin);
+  if (vc.phase === 'grow') {
+    castleDrawBackground();
+    const p = Math.min(1, vc.t / 55);
+    const r = castleEaseOutCubic(p) * Math.max(VW, VH) * 0.75;
+    castleDrawBigPortal(vc.portalX, vc.portalY, r, vc.t);
+    drawDinoShape(ctx, dino.x, dino.y, dino.w, dino.h, s, false, frame, 1);
+  } else if (vc.phase === 'suck') {
+    castleDrawBackground();
+    castleDrawBigPortal(vc.portalX, vc.portalY, Math.max(VW, VH) * 0.75, vc.t);
+    const p = Math.min(1, vc.t / 50);
+    const ease = castleEaseOutCubic(p);
+    const dx = vc.dinoStartX + (vc.portalX - dino.w / 2 - vc.dinoStartX) * ease;
+    const dy = vc.dinoStartY + (vc.portalY - dino.h / 2 - vc.dinoStartY) * ease;
+    const scale = 1 - ease * 0.85;
+    const alpha = Math.max(0, 1 - ease * 0.9);
+    ctx.save();
+    ctx.translate(dx + dino.w / 2, dy + dino.h / 2);
+    ctx.scale(scale, scale);
+    drawDinoShape(ctx, -dino.w / 2, -dino.h / 2, dino.w, dino.h, s, false, frame, alpha);
+    ctx.restore();
+  } else if (vc.phase === 'travel') {
+    castleDrawVortexTunnel(vc.t);
+  } else if (vc.phase === 'land') {
+    castleDrawTombBackground();
+    const p = Math.min(1, vc.t / 65);
+    if (p < 0.4) {
+      ctx.save(); ctx.globalAlpha = 1 - p / 0.4; castleDrawVortexTunnel(999); ctx.restore();
+    }
+    const fallP = Math.min(1, vc.t / 50);
+    const ease = castleEaseOutCubic(fallP);
+    const dy = -60 + ease * 60;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, vc.t / 15);
+    drawDinoShape(ctx, VW / 2 - dino.w / 2, GROUND_Y - dino.h + dy, dino.w, dino.h, s, false, frame, 1);
+    ctx.restore();
+    if (fallP > 0.85) castleDrawLandingDust(VW / 2, GROUND_Y, (fallP - 0.85) / 0.15);
+  } else if (vc.phase === 'tomb') {
+    castleDrawTombBackground();
+    drawDinoShape(ctx, VW / 2 - dino.w / 2, GROUND_Y - dino.h, dino.w, dino.h, s, false, frame, 1);
+  } else if (vc.phase === 'text') {
+    castleDrawTombBackground();
+    drawDinoShape(ctx, VW / 2 - dino.w / 2, GROUND_Y - dino.h, dino.w, dino.h, s, false, frame, 1);
+    castleDrawComingSoonText(vc.t);
+  }
 }
 function castleToast(text) {
   skillToast.textContent = text;
@@ -1049,7 +1245,7 @@ function castleUpdateSkillButtons() {
   }
 }
 function castleAttack(slot) {
-  if (state !== 'playing' || mode !== 'quest' || paused) return;
+  if (state !== 'playing' || mode !== 'quest' || paused || castle.victoryCutscene) return;
   if (!castle.skillsUnlocked[slot]) return;
   if (castle.attackCooldowns[slot] > 0) return;
   const sk = CASTLE_SKILLS[slot];
@@ -1087,6 +1283,7 @@ function castleEndGame(victory) {
   showScreen('gameover');
 }
 function castleUpdate() {
+  if (castle.victoryCutscene) { castleUpdateVictoryCutscene(); return; }
   frame++;
   const f = castleFloorDef();
   if (castle.invincible > 0) castle.invincible--;
@@ -1433,6 +1630,7 @@ function castleDrawBackground() {
   for (let x = 0; x < VW; x += 34) { ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x, VH); ctx.stroke(); }
 }
 function castleDraw() {
+  if (castle.victoryCutscene) { castleDrawVictoryCutscene(); return; }
   castleDrawBackground();
   if (castle.portal) castleDrawPortal(castle.portal);
   castle.mantras.forEach(castleDrawMantra);
@@ -2304,6 +2502,7 @@ function maybeChangeBiome() {
 /* ===================== INPUT ===================== */
 function jump() {
   if (state !== 'playing' || qPaused || paused) return;
+  if (mode === 'quest' && castle.victoryCutscene) return;
   if (!dino.jumping) {
     dino.jumping = true;
     dino.vy = mode === 'quest' ? JUMP_FORCE : currentJumpForce();
@@ -2315,9 +2514,16 @@ function releaseFlight() {
 // Tap-di-canvas buat lompat cuma berlaku di Mode Biasa — di Story Mode (Kastil) ini
 // dimatikan karena lompat sudah ada tombol sendiri, kalau dibiarkan aktif tiap
 // sentuhan di layar (termasuk gak sengaja pas narik joystick) bikin dino lompat sendiri.
-canvas.addEventListener('touchstart', (e) => { e.preventDefault(); if (mode !== 'quest') jump(); }, { passive: false });
+// Tap di layar juga dipakai buat "skip" nunggu di sinematik kemenangan Chapter 1.
+function handleCanvasTap() {
+  if (mode !== 'quest') { jump(); return; }
+  if (castle.victoryCutscene && castle.victoryCutscene.phase === 'text' && castle.victoryCutscene.t > 70) {
+    castleFinishVictoryCutscene();
+  }
+}
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleCanvasTap(); }, { passive: false });
 canvas.addEventListener('touchend', (e) => { e.preventDefault(); releaseFlight(); }, { passive: false });
-canvas.addEventListener('mousedown', () => { if (mode !== 'quest') jump(); });
+canvas.addEventListener('mousedown', handleCanvasTap);
 canvas.addEventListener('mouseup', releaseFlight);
 
 /* ===================== JEDA (PAUSE) MANUAL ===================== */
@@ -2958,38 +3164,21 @@ document.getElementById('hudSideToggleBtn').addEventListener('click', () => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '5.3';
+const APP_VERSION = '5.4';
 const NEWS_LIST = [
   {
-    version: '5.3',
+    version: '5.4',
     date: '30 Agu 2026',
-    title: '🐞 Bug Fix Lanjutan + Pratinjau HUD Live!',
-    items: [
-      '🐞 BUG FIX: dino suka lompat sendiri di Story Mode kalau layar kesentuh dikit (misal pas narik joystick) — sekarang tap-lompat cuma aktif di Mode Biasa, Story Mode murni pakai tombol lompat sendiri.',
-      '🐞 BUG FIX: cegah munculnya menu "copy/share" nempel pas nahan tombol kontrol kelamaan di iPhone.',
-      '🎮 Pengaturan HUD Kastil sekarang ada kotak PRATINJAU LIVE — langsung kelihatan perubahan ukuran/transparansi/posisi joystick sebelum masuk game.',
-      '📏 Batas maksimal ukuran kontrol disesuaikan biar gak numpuk/kepotong di HP layar sempit.'
-    ]
-  },
-  {
-    version: '5.2',
-    date: '30 Agu 2026',
-    title: '🎮 Perbaikan Kontrol Kastil + HUD Bisa Diatur Sendiri!',
+    title: '🏰 Story Mode: Portal Lantai, Sinematik Kemenangan & HUD Custom!',
     items: [
       '🐞 BUG FIX: kontrol Kastil (joystick, lompat, serang) kadang cuma bisa dipencet satu-satu — sekarang semua tombol bisa dipencet BARENGAN pakai jari beda.',
-      '🎮 Fitur baru di Pengaturan: HUD Kastil bisa diatur sendiri — ukuran kontrol, transparansi, sampai posisi joystick (kiri/kanan).',
-      '📐 Tombol kontrol Kastil dibesarkan biar gak kekecilan lagi.'
-    ]
-  },
-  {
-    version: '5.1',
-    date: '30 Agu 2026',
-    title: '🌀 Kastil: Portal Antar Lantai + Musuh Baru!',
-    items: [
+      '🐞 BUG FIX: dino suka lompat sendiri di Story Mode kalau layar kesentuh dikit (misal pas narik joystick) — sekarang tap-lompat cuma aktif di Mode Biasa.',
+      '🐞 BUG FIX: cegah munculnya menu "copy/share" nempel pas nahan tombol kontrol kelamaan di iPhone.',
       '🌀 Naik lantai sekarang lewat PORTAL — begitu target lantai selesai, portal muncul dan kamu harus masuk dulu baru pindah lantai.',
-      '🧟 Model zombie dirombak: badan robek compang-camping, lengan menjuntai, rahang menganga.',
-      '🧛 Model vampir dirombak: jubah merah mengembang, kerah tinggi, rambut klimis, taring & mata menyala.',
-      '🕹️ Kontrol Kastil dirapikan: tombol lompat diperbesar & 3 tombol serang disusun busur biar jempol gak perlu geser-geser lagi.',
+      '👑 SINEMATIK BARU begitu Raja Vampir tumbang di Lantai 4: portal raksasa muncul nutupin ruangan, dino kesedot masuk, animasi terowongan portal, lalu mendarat di makam kuno — ditutup teks "COMING SOON CHAPTER 2"!',
+      '🧟 Model zombie & 🧛 vampir dirombak total — lebih detail & seram.',
+      '🕹️ Kontrol Kastil dirapikan & diperbesar, 3 tombol serang disusun busur biar jempol gak perlu geser-geser.',
+      '🎮 Pengaturan HUD Kastil baru: atur ukuran, transparansi, posisi joystick (kiri/kanan) — lengkap kotak PRATINJAU LIVE.',
       '🗑️ Skin "Naga Emas" dihapus dari hadiah tamat Chapter 1.'
     ]
   },
@@ -3025,41 +3214,19 @@ const NEWS_LIST = [
   {
     version: '4.0',
     date: '26 Agu 2026',
-    title: '🎃 EVENT HANTU — Terbatas sampai 15 Sept 2026!',
+    title: '🎃 EVENT HANTU + Perbaikan Grafis & Profil — Update Besar!',
     items: [
-      '👻 Event spesial dimulai! Lobby & Padang Rumput bertema hantu selama event.',
+      '🐞 Bug macet total di Kualitas Grafis Tinggi/4K — diperbaiki.',
+      '🖼️ Posisi HUD disempurnakan: Cuaca sebaris Koin, Buff di bawah Cuaca.',
+      '🦖 Bonus buff tiap skin sekarang jelas terlihat — ditandai di Toko & HUD.',
+      '👤 Halaman Profil dapat panel "Skin Aktif" baru, section lebih rapi.',
+      '📊 Kartu profil sekarang menampilkan skor tertinggi & koin.',
+      '❄️ Hujan di biome Salju sekarang jadi Badai Salju (kepingan salju), bukan tetesan air.',
+      '👻 EVENT HANTU dimulai! Lobby & Padang Rumput bertema hantu selama event, terbatas sampai 15 Sept 2026.',
       '🎯 2 misi baru — cek lewat ikon 👻 di lobby buat lihat progress & hadiahnya.',
       '🦴 Buff baru "Hantu": tembus pandang & bisa terobos rintangan sementara.',
       '🎁 Hadiah eksklusif: Skin "Hantu Kelana" & Jejak Kaki Hantu — cuma bisa didapat selama event.',
       '🖼️ Icon aplikasi juga ikut bertema hantu selama event berlangsung.'
-    ]
-  },
-  {
-    version: '3.3',
-    date: '26 Agu 2026',
-    title: 'Update 3.3 — Badai Salju',
-    items: [
-      '❄️ Hujan di biome Salju sekarang jadi Badai Salju (kepingan salju), bukan tetesan air.'
-    ]
-  },
-  {
-    version: '3.2',
-    date: '26 Agu 2026',
-    title: 'Update 3.2 — Profil & Skin Diperbarui',
-    items: [
-      '🦖 Lencana buff di badan dino kini besar & jelas — langsung kelihatan buff apa yang dimiliki tiap skin.',
-      '👤 Halaman Profil dapat panel "Skin Aktif" baru, section lebih rapi.',
-      '📊 Kartu profil sekarang menampilkan skor tertinggi & koin.'
-    ]
-  },
-  {
-    version: '3.1',
-    date: '26 Agu 2026',
-    title: 'Update 3.1 — Grafis & Bonus Skin',
-    items: [
-      '🐞 Bug macet total di Kualitas Grafis Tinggi/4K — diperbaiki.',
-      '🖼️ Posisi HUD disempurnakan: Cuaca sebaris Koin, Buff di bawah Cuaca.',
-      '🦖 Bonus buff tiap skin sekarang jelas terlihat — ditandai di Toko & HUD.'
     ]
   },
   {

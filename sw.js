@@ -1,4 +1,4 @@
-const CACHE_NAME = 'dino-runner-v33-goldraven';
+const CACHE_NAME = 'dino-runner-v34-velaria-mirrora';
 const ASSETS = [
   './',
   './index.html',

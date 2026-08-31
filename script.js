@@ -898,7 +898,9 @@ const CASTLE_ENEMY_DEFS = {
   zombieBoss:  { w: 70, h: 80, hp: 260, dmg: 22, speed: 0.3,  color: '#2e4526', dark: '#182a12', scoreOnKill: 0, isBoss: true, name: 'ZOMBIE RAKSASA' },
   vampireKing: { w: 60, h: 76, hp: 320, dmg: 26, speed: 0.65, color: '#4a1a2a', dark: '#280d17', scoreOnKill: 0, isBoss: true, name: 'RAJA VAMPIR' },
   aurelion:    { w: 58, h: 84, hp: 360, dmg: 20, speed: 0.5,  color: '#eee6d2', dark: '#0d0710', scoreOnKill: 0, isBoss: true, name: 'AURELION — KESOMBONGAN' },
-  goldraven:   { w: 74, h: 82, hp: 420, dmg: 18, speed: 0.35, color: '#6b3a12', dark: '#3a1f09', scoreOnKill: 0, isBoss: true, name: 'GOLDRAVEN — KETAMAKAN' }
+  goldraven:   { w: 74, h: 82, hp: 420, dmg: 18, speed: 0.35, color: '#6b3a12', dark: '#3a1f09', scoreOnKill: 0, isBoss: true, name: 'GOLDRAVEN — KETAMAKAN' },
+  velaria:     { w: 56, h: 78, hp: 400, dmg: 16, speed: 0.55, color: '#8a1a2a', dark: '#3a0a10', scoreOnKill: 0, isBoss: true, name: 'VELARIA — NAFSU' },
+  mirrora:     { w: 54, h: 80, hp: 440, dmg: 18, speed: 0.5,  color: '#b8a6ff', dark: '#4a3f6b', scoreOnKill: 0, isBoss: true, name: 'MIRRORA — IRI HATI' }
 };
 // AURELION bisa "mengubah aturan permainan" — tiap ~5 detik dia acak 1 efek
 // yang aktif ~3 detik, bikin pertarungan gak monoton.
@@ -919,7 +921,9 @@ const CASTLE_FLOORS = [
   { name: 'Lantai 3 — Ruang Boss', target: 0, pool: [], isBossFloor: true, bossType: 'zombieBoss' },
   { name: 'Lantai 4 — Puncak Kastil', target: 260, kingTarget: 220, pool: ['zombie', 'zombieBig', 'vampire'], gap: [55, 95] },
   { name: 'Alam Bawah Sadar — AURELION', target: 0, pool: [], isBossFloor: true, bossType: 'aurelion', subconscious: true },
-  { name: 'Alam Bawah Sadar — GOLDRAVEN', target: 0, pool: [], isBossFloor: true, bossType: 'goldraven', subconscious: true }
+  { name: 'Alam Bawah Sadar — GOLDRAVEN', target: 0, pool: [], isBossFloor: true, bossType: 'goldraven', subconscious: true },
+  { name: 'Alam Bawah Sadar — VELARIA', target: 0, pool: [], isBossFloor: true, bossType: 'velaria', subconscious: true },
+  { name: 'Alam Bawah Sadar — MIRRORA', target: 0, pool: [], isBossFloor: true, bossType: 'mirrora', subconscious: true }
 ];
 let castle = {
   floor: 1, hp: 150, maxHp: 150, score: 0,
@@ -931,7 +935,8 @@ let castle = {
   attackCooldowns: [0, 0, 0],
   invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false,
   portal: null, floorCleared: false, victoryCutscene: null,
-  ruleEffect: null, ruleEffectT: 0, ruleTimer: 0, projectiles: []
+  ruleEffect: null, ruleEffectT: 0, ruleTimer: 0, projectiles: [],
+  memoryCutscene: null, illusion: null
 };
 function castleResetRun() {
   castle = {
@@ -944,7 +949,8 @@ function castleResetRun() {
     attackCooldowns: [0, 0, 0],
     invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false,
     portal: null, floorCleared: false, victoryCutscene: null,
-    ruleEffect: null, ruleEffectT: 0, ruleTimer: 0, projectiles: []
+    ruleEffect: null, ruleEffectT: 0, ruleTimer: 0, projectiles: [],
+    memoryCutscene: null, illusion: null
   };
 }
 function castleFloorDef() { return CASTLE_FLOORS[castle.floor]; }
@@ -965,7 +971,8 @@ function castleSpawnBoss(type) {
     type, x: VW / 2 - def.w / 2, y: GROUND_Y - def.h,
     w: def.w, h: def.h, hp: def.hp, maxHp: def.hp,
     dmg: def.dmg, speed: def.speed, atkCooldown: 0, hitFlash: 0, walkFrame: 0,
-    rangedCooldown: 150, absorbT: 0
+    rangedCooldown: 150, absorbT: 0, vulnT: 0,
+    mimicMode: null, mimicT: 0, mimicCooldown: 240
   };
   castle.bossActive = true;
   bossBarWrap.style.display = 'block';
@@ -1062,19 +1069,182 @@ function castleStartGoldravenFight() {
   castleToast('💰 GOLDRAVEN — Manifestasi Ketamakan muncul!');
   castleSpawnBoss('goldraven');
 }
-function castleShowLore(title, text, onDone) {
+function castleStartVelariaFight() {
+  castle.floor = 7;
+  castle.enemies = [];
+  castle.projectiles = [];
+  castle.portal = null;
+  castle.floorCleared = false;
+  castle.ruleEffect = null;
+  castle.ruleEffectT = 0;
+  castle.ruleTimer = 0;
+  castle.illusion = null;
+  document.getElementById('castleFloorPill').textContent = '🌑 ALAM BAWAH SADAR';
+  document.getElementById('questHud').style.display = '';
+  document.getElementById('castleControls').classList.add('visible');
+  castleUpdateHpBar();
+  castleToast('🌙 VELARIA — Manifestasi Nafsu muncul!');
+  castleSpawnBoss('velaria');
+}
+function castleStartMirroraFight() {
+  castle.floor = 8;
+  castle.enemies = [];
+  castle.projectiles = [];
+  castle.portal = null;
+  castle.floorCleared = false;
+  castle.ruleEffect = null;
+  castle.ruleEffectT = 0;
+  castle.ruleTimer = 0;
+  document.getElementById('castleFloorPill').textContent = '🌑 ALAM BAWAH SADAR';
+  document.getElementById('questHud').style.display = '';
+  document.getElementById('castleControls').classList.add('visible');
+  castleUpdateHpBar();
+  castleToast('🪞 MIRRORA — Manifestasi Iri Hati muncul!');
+  castleSpawnBoss('mirrora');
+}
+/* ===================== SINEMATIK KILAS BALIK (ANIMASI, BUKAN TEKS) =====================
+   Tiap manifestasi kalah -> layar pindah ke adegan siluet animasi bertema
+   (laut/harta/es/kaca) dengan partikel bergerak, subtitle singkat muncul di
+   bawah sebagai pelengkap — bukan panel teks penuh layar kayak sebelumnya. */
+const CASTLE_MEMORY_THEMES = {
+  aurelion: {
+    bg1: '#122036', bg2: '#050a12', accent: '#4fc3ff', motif: '🌊', particle: 'bubble',
+    caption: 'Kesombongan Raja Vampir dimulai saat domain Laut Selatan jatuh ke tangannya. Ia berpikir dirinya penguasa sejati — dan jadi sombong ke teman seperjuangannya sendiri.'
+  },
+  goldraven: {
+    bg1: '#2b1a08', bg2: '#0f0904', accent: '#ffd63c', motif: '💰', particle: 'coin',
+    caption: 'Usai menguasai domain selatan, ia jadi sangat serakah — mengambil semua yang ada, menghancurkannya kalau tak puas, selalu mencari yang terbaik.'
+  },
+  velaria: {
+    bg1: '#241733', bg2: '#0a0612', accent: '#ff6fae', motif: '❄️', particle: 'snow',
+    caption: 'Obsesinya untuk menguasai domain utara juga mulai tumbuh — matanya kini tertuju pada puncak-puncak es yang belum pernah ia jamah.'
+  },
+  mirrora: {
+    bg1: '#151a2b', bg2: '#05070d', accent: '#b8a6ff', motif: '🪞', particle: 'shard',
+    caption: 'Iri hatinya tumbuh terhadap sang adik, yang mendapat kekuasaan begitu besar di domain barat dan timur — sesuatu yang tak pernah ia miliki.'
+  },
+  teaser: {
+    bg1: '#151022', bg2: '#050308', accent: '#b8a6ff', motif: '🌑', particle: 'shard',
+    caption: 'GORGATH (Kerakusan), RAVAGOR (Amarah), dan SOMNARA masih bersembunyi jauh di Alam Bawah Sadar ini.\nCOMING SOON — CHAPTER 2 LANJUTAN'
+  }
+};
+function castleShowMemoryCutscene(sceneKey, onDone) {
   document.getElementById('castleControls').classList.remove('visible');
   document.getElementById('questHud').style.display = 'none';
   bossBarWrap.style.display = 'none';
-  storyIcon.textContent = '💭';
-  document.getElementById('storyTitle').textContent = title;
-  storyText.textContent = text;
-  storyOverlay.classList.add('active');
-  storyBtn.onclick = () => {
-    storyOverlay.classList.remove('active');
-    storyBtn.onclick = null;
-    if (onDone) onDone();
-  };
+  castle.memoryCutscene = { sceneKey, phase: 'fadein', t: 0, onDone };
+}
+function castleUpdateMemoryCutscene() {
+  frame++;
+  const m = castle.memoryCutscene;
+  m.t++;
+  if (m.phase === 'fadein' && m.t > 35) { m.phase = 'scene'; m.t = 0; }
+  else if (m.phase === 'scene' && m.t > 260) { m.phase = 'fadeout'; m.t = 0; }
+  else if (m.phase === 'fadeout' && m.t > 35) {
+    const cb = m.onDone;
+    castle.memoryCutscene = null;
+    if (cb) cb();
+  }
+}
+function castleWrapText(text, x, y, maxWidth, lineHeight) {
+  const paragraphs = text.split('\n');
+  const lines = [];
+  paragraphs.forEach(para => {
+    const words = para.split(' ');
+    let line = '';
+    words.forEach((word, i) => {
+      const test = line + word + ' ';
+      if (ctx.measureText(test).width > maxWidth && i > 0) { lines.push(line.trim()); line = word + ' '; }
+      else line = test;
+    });
+    lines.push(line.trim());
+  });
+  const startY = y - (lines.length - 1) * lineHeight / 2;
+  lines.forEach((l, i) => ctx.fillText(l, x, startY + i * lineHeight));
+}
+function castleDrawMemoryScene(sceneKey, t) {
+  const th = CASTLE_MEMORY_THEMES[sceneKey];
+  const g = ctx.createLinearGradient(0, 0, 0, VH);
+  g.addColorStop(0, th.bg1); g.addColorStop(1, th.bg2);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+
+  // motif besar berdenyut melayang
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  ctx.font = `${52 + Math.sin(t * 0.03) * 4}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.shadowColor = th.accent; ctx.shadowBlur = 24;
+  ctx.fillText(th.motif, VW / 2, VH * 0.3 + Math.sin(t * 0.02) * 6);
+  ctx.restore();
+
+  // siluet Raja Vampir membesar/menyala di tengah
+  ctx.save();
+  const growP = Math.min(1, t / 140);
+  const kingH = 46 + growP * 28;
+  ctx.fillStyle = '#050308';
+  roundRectPath(ctx, VW * 0.5 - 9, GROUND_Y - kingH, 18, kingH, 4);
+  ctx.fill();
+  ctx.beginPath(); ctx.arc(VW * 0.5, GROUND_Y - kingH - 9, 8, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = th.accent; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.7;
+  ctx.beginPath(); ctx.arc(VW * 0.5, GROUND_Y - kingH - 9, 10 + growP * 3, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+
+  // sosok-sosok lain menjauh (menggambarkan teman/keluarga yang ditinggalkan)
+  ctx.save();
+  ctx.fillStyle = '#050308';
+  ctx.globalAlpha = Math.max(0.15, 1 - t / 220);
+  const walk = Math.min(1, t / 220) * VW * 0.3;
+  [-1, 1].forEach(dir => {
+    const x = VW * 0.5 + dir * (40 + walk);
+    ctx.beginPath(); ctx.ellipse(x, GROUND_Y - 16, 7, 16, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, GROUND_Y - 34, 6, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.restore();
+
+  // partikel motif bertema
+  for (let i = 0; i < 16; i++) {
+    const seed = i * 53;
+    const x = (seed + t * 0.6) % VW;
+    const y = GROUND_Y - ((t * 0.8 + seed) % (GROUND_Y - 20));
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    if (th.particle === 'bubble') { ctx.strokeStyle = th.accent; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.stroke(); }
+    else if (th.particle === 'coin') { ctx.fillStyle = th.accent; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill(); }
+    else if (th.particle === 'snow') { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill(); }
+    else { ctx.translate(x, y); ctx.rotate(i); ctx.fillStyle = th.accent; ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(0, -4); ctx.lineTo(3, 0); ctx.lineTo(0, 4); ctx.closePath(); ctx.fill(); }
+    ctx.restore();
+  }
+}
+function castleDrawMemoryCutscene() {
+  const m = castle.memoryCutscene;
+  const th = CASTLE_MEMORY_THEMES[m.sceneKey];
+  castleDrawMemoryScene(m.sceneKey, frame);
+  let overlayAlpha = 0;
+  if (m.phase === 'fadein') overlayAlpha = 1 - m.t / 35;
+  else if (m.phase === 'fadeout') overlayAlpha = m.t / 35;
+  if (overlayAlpha > 0) {
+    ctx.save(); ctx.globalAlpha = overlayAlpha; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, VH); ctx.restore();
+  }
+  const capAlpha = m.phase === 'scene' ? Math.min(1, m.t / 30) : (m.phase === 'fadeout' ? Math.max(0, 1 - m.t / 35) : 0);
+  if (capAlpha > 0) {
+    ctx.save();
+    ctx.globalAlpha = capAlpha;
+    ctx.fillStyle = 'rgba(5,3,8,0.55)';
+    roundRectPath(ctx, VW * 0.06, VH * 0.76, VW * 0.88, VH * 0.19, 10);
+    ctx.fill();
+    ctx.fillStyle = '#e8e2f0';
+    ctx.font = "11.5px 'Baloo 2', sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    castleWrapText(th.caption, VW / 2, VH * 0.855, VW * 0.78, 15);
+    ctx.restore();
+  }
+  if (m.phase === 'scene' && m.t > 60) {
+    ctx.save();
+    ctx.globalAlpha = 0.5 + Math.sin(frame * 0.08) * 0.25;
+    ctx.fillStyle = '#fff'; ctx.font = "10px 'Baloo 2', sans-serif"; ctx.textAlign = 'center';
+    ctx.fillText('(ketuk buat lanjut)', VW / 2, VH * 0.97);
+    ctx.restore();
+  }
 }
 function castleFinishAurelion() {
   castle.boss = null;
@@ -1082,17 +1252,7 @@ function castleFinishAurelion() {
   bossBarWrap.style.display = 'none';
   castle.ruleEffect = null;
   AudioMgr.sfx('unlock');
-  castleShowLore(
-    '💭 KILAS BALIK: KESOMBONGAN',
-    'Kesombongan Raja Vampir dimulai saat domain Laut Selatan jatuh ke tangannya. Ia mulai berpikir dirinya telah menjadi penguasa sejati — dan menjadi sombong kepada teman-teman seperjuangannya sendiri.',
-    () => {
-      castleShowLore(
-        '💰 GOLDRAVEN Bangkit!',
-        'Manifestasi Ketamakan sang Raja Vampir kini muncul dari bayang-bayang Alam Bawah Sadar...',
-        () => { castleStartGoldravenFight(); }
-      );
-    }
-  );
+  castleShowMemoryCutscene('aurelion', () => { castleStartGoldravenFight(); });
 }
 function castleFinishGoldraven() {
   castle.boss = null;
@@ -1100,17 +1260,114 @@ function castleFinishGoldraven() {
   bossBarWrap.style.display = 'none';
   castle.projectiles = [];
   AudioMgr.sfx('unlock');
-  castleShowLore(
-    '💭 KILAS BALIK: KETAMAKAN',
-    'Setelah berhasil menguasai domain selatan, ia menjadi sangat serakah — mengambil semua yang ada di sana, menghancurkannya jika merasa tidak puas, dan selalu mencari yang terbaik.',
-    () => {
-      castleShowLore(
-        '🎭 5 Manifestasi Lain Menanti...',
-        'VELARIA (Nafsu) dan 4 manifestasi dosa besar lainnya masih bersembunyi jauh di dalam Alam Bawah Sadar ini.\n\nCOMING SOON — CHAPTER 2 LANJUTAN',
-        () => { castleEndGame(true); }
-      );
+  castleShowMemoryCutscene('goldraven', () => { castleStartVelariaFight(); });
+}
+function castleFinishVelaria() {
+  castle.boss = null;
+  castle.bossActive = false;
+  bossBarWrap.style.display = 'none';
+  castle.illusion = null;
+  castle.projectiles = [];
+  AudioMgr.sfx('unlock');
+  castleShowMemoryCutscene('velaria', () => { castleStartMirroraFight(); });
+}
+function castleFinishMirrora() {
+  castle.boss = null;
+  castle.bossActive = false;
+  bossBarWrap.style.display = 'none';
+  castle.ruleEffect = null;
+  castle.projectiles = [];
+  AudioMgr.sfx('unlock');
+  castleShowMemoryCutscene('mirrora', () => {
+    castleShowMemoryCutscene('teaser', () => { castleEndGame(true); });
+  });
+}
+/* ===================== VELARIA: DIMENSI ILUSI =====================
+   Kena portal VELARIA -> ditarik ke dimensi ilusi berisi godaan (kekuatan,
+   kemenangan, dsb) yang harus DIHINDARI (bukan diserang) selama beberapa
+   detik. Kesentuh = kena damage besar. Berhasil bertahan -> balik ke arena
+   persis di sebelah VELARIA dengan jendela "lengah" buat serangan balik. */
+function castleStartIllusion() {
+  const icons = ['💪', '👑', '✨', '⚔️', '🔥'];
+  const orbs = [];
+  for (let i = 0; i < 3; i++) {
+    orbs.push({
+      x: 40 + Math.random() * (VW - 80), y: 60 + Math.random() * (GROUND_Y - 120),
+      ang: Math.random() * Math.PI * 2, spd: 0.6 + Math.random() * 0.4,
+      icon: icons[Math.floor(Math.random() * icons.length)], t: 0, cd: 0
+    });
+  }
+  castle.illusion = { t: 0, duration: 300, orbs };
+  castleToast('😵 Tertarik ke dimensi ilusi VELARIA! Jangan sampai kesentuh godaannya!');
+  AudioMgr.sfx('unlock');
+}
+function castleUpdateIllusion() {
+  frame++;
+  const il = castle.illusion;
+  il.t++;
+  dino.x += castle.analogX * 3.4;
+  dino.x = Math.max(8, Math.min(VW - dino.w - 8, dino.x));
+  if (dino.jumping) {
+    dino.vy += GRAVITY;
+    dino.y += dino.vy;
+    if (dino.y >= GROUND_Y - dino.h) { dino.y = GROUND_Y - dino.h; dino.jumping = false; dino.vy = 0; }
+  }
+  il.orbs.forEach(o => {
+    o.t++;
+    if (o.cd > 0) o.cd--;
+    o.x += Math.cos(o.ang) * o.spd;
+    o.y += Math.sin(o.ang) * o.spd * 0.6;
+    if (o.x < 20 || o.x > VW - 20) o.ang = Math.PI - o.ang;
+    if (o.y < 40 || o.y > GROUND_Y - 20) o.ang = -o.ang;
+    if (o.t % 90 === 0) {
+      const dx = (dino.x + dino.w / 2) - o.x, dy = (dino.y + dino.h / 2) - o.y;
+      o.ang = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.6;
     }
-  );
+  });
+  const dcx = dino.x + dino.w / 2, dcy = dino.y + dino.h / 2;
+  il.orbs.forEach(o => {
+    if (o.cd > 0) return;
+    if (Math.hypot(o.x - dcx, o.y - dcy) < 22) {
+      castleTakeDamage(30);
+      o.cd = 60;
+      castleToast('😈 Kamu tergoda! Cepat menjauh!');
+    }
+  });
+  if (il.t > il.duration) {
+    castle.illusion = null;
+    if (castle.boss) {
+      dino.x = Math.max(8, Math.min(VW - dino.w - 8, castle.boss.x + (castle.boss.x < VW / 2 ? 50 : -50)));
+      castle.boss.vulnT = 90;
+    }
+    castleToast('✨ Kamu berhasil menolak! Serang VELARIA sekarang selagi lengah!');
+    AudioMgr.sfx('unlock');
+  }
+  castleUpdateHpBar();
+}
+function castleDrawIllusion() {
+  const il = castle.illusion;
+  const g = ctx.createRadialGradient(VW / 2, VH * 0.4, 10, VW / 2, VH * 0.4, Math.max(VW, VH) * 0.8);
+  g.addColorStop(0, '#3a1f52'); g.addColorStop(1, '#0a0512');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
+  il.orbs.forEach(o => {
+    ctx.save();
+    ctx.globalAlpha = o.cd > 0 ? 0.3 : 0.9;
+    ctx.translate(o.x, o.y);
+    ctx.shadowColor = '#ff6fae'; ctx.shadowBlur = 16;
+    ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(o.icon, 0, 0);
+    ctx.restore();
+  });
+  const s = getSkin(data.selectedSkin);
+  drawDinoShape(ctx, dino.x, dino.y, dino.w, dino.h, s, dino.jumping, frame, 1);
+  ctx.save();
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = '#fff'; ctx.font = "12px 'Baloo 2', sans-serif"; ctx.textAlign = 'center';
+  ctx.fillText('JANGAN SAMPAI KESENTUH GODAANNYA!', VW / 2, 34);
+  ctx.restore();
+  const p = Math.max(0, 1 - il.t / il.duration);
+  ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(VW * 0.2, 48, VW * 0.6, 6);
+  ctx.fillStyle = '#ff6fae'; ctx.fillRect(VW * 0.2, 48, VW * 0.6 * p, 6);
 }
 function castleUpdateVictoryCutscene() {
   frame++;
@@ -1400,7 +1657,7 @@ function castleUpdateSkillButtons() {
   }
 }
 function castleAttack(slot) {
-  if (state !== 'playing' || mode !== 'quest' || paused || castle.victoryCutscene) return;
+  if (state !== 'playing' || mode !== 'quest' || paused || castle.victoryCutscene || castle.memoryCutscene || castle.illusion) return;
   if (!castle.skillsUnlocked[slot]) return;
   if (castle.attackCooldowns[slot] > 0) return;
   const sk = CASTLE_SKILLS[slot];
@@ -1412,7 +1669,7 @@ function castleAttack(slot) {
   targets.forEach(e => {
     const ecx = e.x + e.w / 2;
     if (Math.abs(ecx - cx) <= sk.range) {
-      e.hp -= sk.dmg;
+      e.hp -= e.vulnT > 0 ? sk.dmg * 1.5 : sk.dmg;
       e.hitFlash = 8;
       hitAny = true;
     }
@@ -1433,14 +1690,23 @@ function castleEndGame(victory) {
   document.getElementById('goStatsQuest').style.display = '';
   const aurelionDone = victory && castle.floor === 5;
   const goldravenDone = victory && castle.floor === 6;
-  document.getElementById('goTitle').textContent = victory ? (goldravenDone ? '💰 GOLDRAVEN TUMBANG!' : aurelionDone ? '👑 AURELION TUMBANG!' : '👑 KASTIL TAMAT!') : '💀 TERTUMBANG DI KASTIL';
+  const velariaDone = victory && castle.floor === 7;
+  const mirroraDone = victory && castle.floor === 8;
+  let title = '👑 KASTIL TAMAT!', age = '4 (Tamat)', mapTxt = 'Raja Vampir Tumbang!';
+  if (mirroraDone) { title = '🪞 MIRRORA TUMBANG!'; age = '8 (Alam Bawah Sadar)'; mapTxt = 'Manifestasi ke-4 Tumbang!'; }
+  else if (velariaDone) { title = '🌙 VELARIA TUMBANG!'; age = '7 (Alam Bawah Sadar)'; mapTxt = 'Manifestasi ke-3 Tumbang!'; }
+  else if (goldravenDone) { title = '💰 GOLDRAVEN TUMBANG!'; age = '6 (Alam Bawah Sadar)'; mapTxt = 'Manifestasi ke-2 Tumbang!'; }
+  else if (aurelionDone) { title = '👑 AURELION TUMBANG!'; age = '5 (Alam Bawah Sadar)'; mapTxt = 'Manifestasi ke-1 Tumbang!'; }
+  document.getElementById('goTitle').textContent = victory ? title : '💀 TERTUMBANG DI KASTIL';
   document.getElementById('goTitle').classList.toggle('new-best', victory);
-  document.getElementById('goAge').textContent = victory ? (goldravenDone ? '6 (Alam Bawah Sadar)' : aurelionDone ? '5 (Alam Bawah Sadar)' : '4 (Tamat)') : String(castle.floor);
-  document.getElementById('goMap').textContent = victory ? (goldravenDone ? 'Manifestasi ke-2 Tumbang!' : aurelionDone ? 'Manifestasi ke-1 Tumbang!' : 'Raja Vampir Tumbang!') : (CASTLE_FLOORS[castle.floor] ? CASTLE_FLOORS[castle.floor].name : '-');
+  document.getElementById('goAge').textContent = victory ? age : String(castle.floor);
+  document.getElementById('goMap').textContent = victory ? mapTxt : (CASTLE_FLOORS[castle.floor] ? CASTLE_FLOORS[castle.floor].name : '-');
   showScreen('gameover');
 }
 function castleUpdate() {
   if (castle.victoryCutscene) { castleUpdateVictoryCutscene(); return; }
+  if (castle.memoryCutscene) { castleUpdateMemoryCutscene(); return; }
+  if (castle.illusion) { castleUpdateIllusion(); return; }
   frame++;
   const f = castleFloorDef();
   if (castle.invincible > 0) castle.invincible--;
@@ -1520,8 +1786,10 @@ function castleUpdate() {
   // update boss
   if (castle.boss) {
     const b = castle.boss;
+    const def = CASTLE_ENEMY_DEFS[b.type];
     if (b.hitFlash > 0) b.hitFlash--;
     if (b.atkCooldown > 0) b.atkCooldown--;
+    if (b.vulnT > 0) b.vulnT--;
     const bcx = b.x + b.w / 2;
     if (Math.abs(bcx - cx) > 30) {
       b.x += bcx < cx ? b.speed : -b.speed;
@@ -1543,9 +1811,60 @@ function castleUpdate() {
         const dx = tx - bx, dy = ty - by;
         const dist = Math.max(1, Math.hypot(dx, dy));
         const spd = 3.1;
-        castle.projectiles.push({ x: bx, y: by, vx: dx / dist * spd, vy: dy / dist * spd, dmg: 14, life: 160 });
+        castle.projectiles.push({ x: bx, y: by, vx: dx / dist * spd, vy: dy / dist * spd, dmg: 14, life: 160, kind: 'coin' });
         castleToast('💰 GOLDRAVEN melontarkan hartanya!');
         AudioMgr.sfx('coin');
+      }
+    }
+    // VELARIA: menembakkan portal — kena portalnya = ketarik ke dimensi ilusi
+    if (b.type === 'velaria') {
+      b.rangedCooldown--;
+      if (b.rangedCooldown <= 0 && !castle.illusion) {
+        b.rangedCooldown = 280;
+        const bx = b.x + b.w / 2, by = b.y + b.h * 0.32;
+        const tx = dino.x + dino.w / 2, ty = dino.y + dino.h / 2;
+        const dx = tx - bx, dy = ty - by;
+        const dist = Math.max(1, Math.hypot(dx, dy));
+        const spd = 2.5;
+        castle.projectiles.push({ x: bx, y: by, vx: dx / dist * spd, vy: dy / dist * spd, dmg: 0, life: 220, kind: 'portal' });
+        castleToast('🌙 VELARIA menembakkan portal ilusi — hindari!');
+        AudioMgr.sfx('unlock');
+      }
+    }
+    // MIRRORA: meniru kekuatan manifestasi sebelumnya (atau dino sendiri) bergantian
+    if (b.type === 'mirrora') {
+      if (b.mimicT > 0) {
+        b.mimicT--;
+        if (b.mimicT <= 0) {
+          b.mimicMode = null;
+          b.speed = def.speed;
+          castle.ruleEffect = null;
+          castleToast('🪞 MIRRORA berhenti meniru.');
+        }
+      } else {
+        b.mimicCooldown--;
+        if (b.mimicCooldown <= 0) {
+          const modes = ['aurelion', 'goldraven', 'dino'];
+          const pick = modes[Math.floor(Math.random() * modes.length)];
+          b.mimicMode = pick; b.mimicT = 170; b.mimicCooldown = 280;
+          if (pick === 'aurelion') {
+            const keys = Object.keys(AURELION_RULES);
+            const rule = keys[Math.floor(Math.random() * keys.length)];
+            castle.ruleEffect = rule; castle.ruleEffectT = 150;
+            castleToast(`🪞 MIRRORA meniru AURELION: ${AURELION_RULES[rule].label}`);
+          } else if (pick === 'goldraven') {
+            const bx = b.x + b.w / 2, by = b.y + b.h * 0.32;
+            const tx = dino.x + dino.w / 2, ty = dino.y + dino.h / 2;
+            const dx = tx - bx, dy = ty - by;
+            const dist = Math.max(1, Math.hypot(dx, dy));
+            castle.projectiles.push({ x: bx, y: by, vx: dx / dist * 3, vy: dy / dist * 3, dmg: 14, life: 160, kind: 'coin' });
+            castleToast('🪞 MIRRORA meniru GOLDRAVEN: melontarkan harta!');
+          } else {
+            b.speed = def.speed * 2.3;
+            castleToast('🪞 MIRRORA meniru DINO: jadi cepat & ganas!');
+          }
+          AudioMgr.sfx('unlock');
+        }
       }
     }
     castleUpdateBossBar();
@@ -1561,6 +1880,16 @@ function castleUpdate() {
         return;
       } else if (b.type === 'goldraven') {
         castleFinishGoldraven();
+        castleUpdateHpBar();
+        castleUpdateProgress();
+        return;
+      } else if (b.type === 'velaria') {
+        castleFinishVelaria();
+        castleUpdateHpBar();
+        castleUpdateProgress();
+        return;
+      } else if (b.type === 'mirrora') {
+        castleFinishMirrora();
         castleUpdateHpBar();
         castleUpdateProgress();
         return;
@@ -1580,7 +1909,7 @@ function castleUpdate() {
     }
   }
 
-  // update proyektil (dipakai GOLDRAVEN & boss-boss jarak jauh berikutnya)
+  // update proyektil (koin GOLDRAVEN/MIRRORA = damage langsung, portal VELARIA = tarik ke ilusi)
   if (castle.projectiles.length) {
     const dcx = dino.x + dino.w / 2, dcy = dino.y + dino.h / 2;
     for (let i = castle.projectiles.length - 1; i >= 0; i--) {
@@ -1588,13 +1917,15 @@ function castleUpdate() {
       p.x += p.vx; p.y += p.vy; p.life--;
       const dist = Math.hypot(p.x - dcx, p.y - dcy);
       if (dist < 18) {
-        castleTakeDamage(p.dmg);
         castle.projectiles.splice(i, 1);
+        if (p.kind === 'portal') { castleStartIllusion(); break; }
+        else { castleTakeDamage(p.dmg); }
       } else if (p.life <= 0 || p.x < -50 || p.x > VW + 50 || p.y < -50 || p.y > VH + 50) {
         castle.projectiles.splice(i, 1);
       }
     }
   }
+
 
   // trigger Raja Vampir di lantai 4 (dijaga: jangan spawn lagi kalau Kastil sudah tamat)
   if (castle.floor === 4 && !castle.completed && !castle.bossActive && castle.score >= f.kingTarget) {
@@ -1902,15 +2233,133 @@ function castleDrawGoldravenBody(e, def, flash) {
 function castleDrawProjectile(p) {
   ctx.save();
   ctx.translate(p.x, p.y);
-  ctx.rotate(frame * 0.25);
-  ctx.shadowColor = 'rgba(255,214,60,0.8)'; ctx.shadowBlur = 8;
-  ctx.fillStyle = '#ffd63c';
-  ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.stroke();
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#fff8d0';
-  ctx.beginPath(); ctx.arc(-2, -2, 2, 0, Math.PI * 2); ctx.fill();
+  if (p.kind === 'portal') {
+    ctx.rotate(frame * 0.15);
+    ctx.shadowColor = 'rgba(255,111,174,0.85)'; ctx.shadowBlur = 12;
+    const grd = ctx.createRadialGradient(0, 0, 1, 0, 0, 9);
+    grd.addColorStop(0, '#ffe0f0'); grd.addColorStop(0.6, '#ff6fae'); grd.addColorStop(1, 'rgba(255,111,174,0)');
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a0a10'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(0, 0, 8, 4, frame * 0.1, 0, Math.PI * 2); ctx.stroke();
+  } else {
+    ctx.rotate(frame * 0.25);
+    ctx.shadowColor = 'rgba(255,214,60,0.8)'; ctx.shadowBlur = 8;
+    ctx.fillStyle = '#ffd63c';
+    ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff8d0';
+    ctx.beginPath(); ctx.arc(-2, -2, 2, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.restore();
+}
+function castleDrawVelariaBody(e, def, flash) {
+  const w = e.w, h = e.h;
+  const sway = Math.sin(e.walkFrame * 0.45) * 0.06;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.4, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+
+  // jubah merah panjang mengalir
+  ctx.save();
+  ctx.rotate(sway * 0.4);
+  ctx.fillStyle = flash ? '#ffdddd' : '#8a1a2a';
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.3, -h * 0.68);
+  ctx.lineTo(-w * 0.5, h * 0.02);
+  ctx.lineTo(-w * 0.16, -h * 0.14);
+  ctx.lineTo(0, -h * 0.04);
+  ctx.lineTo(w * 0.16, -h * 0.14);
+  ctx.lineTo(w * 0.5, h * 0.02);
+  ctx.lineTo(w * 0.3, -h * 0.68);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  // tubuh ramping berselubung kain merah gelap
+  ctx.fillStyle = flash ? '#ffffff' : '#5a1018';
+  roundRectPath(ctx, -w * 0.24, -h * 0.76, w * 0.48, h * 0.56, w * 0.14);
+  ctx.fill();
+
+  // kepala + topeng setengah terbuka
+  ctx.save();
+  ctx.translate(0, -h * 0.9);
+  ctx.rotate(sway);
+  ctx.fillStyle = flash ? '#ffffff' : '#e8c9c0';
+  ctx.beginPath(); ctx.arc(0, 0, w * 0.26, 0, Math.PI * 2); ctx.fill();
+  // topeng menutup bagian atas wajah
+  ctx.fillStyle = '#2a0a10';
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.26, -w * 0.02);
+  ctx.lineTo(-w * 0.26, -w * 0.2);
+  ctx.quadraticCurveTo(0, -w * 0.34, w * 0.26, -w * 0.2);
+  ctx.lineTo(w * 0.26, -w * 0.02);
+  ctx.quadraticCurveTo(0, w * 0.06, -w * 0.26, -w * 0.02);
+  ctx.closePath(); ctx.fill();
+  ctx.shadowColor = '#ff6fae'; ctx.shadowBlur = 6;
+  ctx.fillStyle = '#ff6fae';
+  ctx.beginPath(); ctx.arc(-w * 0.1, -w * 0.08, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w * 0.1, -w * 0.08, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // bibir separuh wajah terbuka di bawah topeng
+  ctx.strokeStyle = '#a03040'; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(-w * 0.06, w * 0.12); ctx.lineTo(w * 0.06, w * 0.12); ctx.stroke();
+  ctx.restore();
+
+  ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, -h * 0.9, w * 0.34 + 6, 0, Math.PI * 2); ctx.stroke();
+}
+function castleDrawMirroraBody(e, def, flash) {
+  const w = e.w, h = e.h;
+  const sway = Math.sin(e.walkFrame * 0.4) * 0.05;
+  let tint = '#b8a6ff';
+  if (e.mimicMode === 'aurelion') tint = '#e8c15c';
+  else if (e.mimicMode === 'goldraven') tint = '#ffd63c';
+  else if (e.mimicMode === 'dino') tint = '#7ee696';
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.4, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+
+  // tubuh kristal faceted
+  ctx.save();
+  ctx.rotate(sway * 0.3);
+  ctx.globalAlpha = 0.88;
+  ctx.fillStyle = flash ? '#ffffff' : tint;
+  ctx.beginPath();
+  ctx.moveTo(0, -h * 0.78);
+  ctx.lineTo(w * 0.3, -h * 0.5);
+  ctx.lineTo(w * 0.22, -h * 0.05);
+  ctx.lineTo(0, h * 0.02);
+  ctx.lineTo(-w * 0.22, -h * 0.05);
+  ctx.lineTo(-w * 0.3, -h * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(0, -h * 0.78); ctx.lineTo(0, h * 0.02); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-w * 0.3, -h * 0.5); ctx.lineTo(w * 0.3, -h * 0.5); ctx.stroke();
+  ctx.restore();
+
+  // kepala kristal reflektif (wajah kosong, cuma kilau)
+  ctx.save();
+  ctx.translate(0, -h * 0.88);
+  ctx.rotate(sway);
+  ctx.globalAlpha = 0.92;
+  ctx.fillStyle = flash ? '#ffffff' : tint;
+  ctx.beginPath();
+  ctx.moveTo(0, -w * 0.28); ctx.lineTo(w * 0.22, 0); ctx.lineTo(0, w * 0.28); ctx.lineTo(-w * 0.22, 0);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.beginPath(); ctx.moveTo(-w * 0.06, -w * 0.12); ctx.lineTo(0, -w * 0.02); ctx.lineTo(-w * 0.02, w * 0.02); ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  if (e.mimicMode) {
+    ctx.save();
+    ctx.globalAlpha = 0.5 + Math.sin(frame * 0.1) * 0.2;
+    ctx.strokeStyle = tint; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, -h * 0.5, w * 0.5, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, -h * 0.88, w * 0.34 + 6, 0, Math.PI * 2); ctx.stroke();
 }
 function castleDrawEnemy(e) {
   const def = CASTLE_ENEMY_DEFS[e.type];
@@ -1923,6 +2372,10 @@ function castleDrawEnemy(e) {
     castleDrawAurelionBody(e, def, flash);
   } else if (e.type === 'goldraven') {
     castleDrawGoldravenBody(e, def, flash);
+  } else if (e.type === 'velaria') {
+    castleDrawVelariaBody(e, def, flash);
+  } else if (e.type === 'mirrora') {
+    castleDrawMirroraBody(e, def, flash);
   } else if (e.type === 'vampire' || e.type === 'vampireKing') {
     castleDrawVampireBody(e, def, flash);
   } else {
@@ -2009,6 +2462,8 @@ function castleDrawBackground() {
 }
 function castleDraw() {
   if (castle.victoryCutscene) { castleDrawVictoryCutscene(); return; }
+  if (castle.memoryCutscene) { castleDrawMemoryCutscene(); return; }
+  if (castle.illusion) { castleDrawIllusion(); return; }
   if (castleFloorDef() && castleFloorDef().subconscious) {
     castleDrawSubconsciousBackground();
   } else {
@@ -2885,8 +3340,8 @@ function maybeChangeBiome() {
 /* ===================== INPUT ===================== */
 function jump() {
   if (state !== 'playing' || qPaused || paused) return;
-  if (mode === 'quest' && castle.victoryCutscene) return;
-  if (mode === 'quest' && castle.ruleEffect === 'nojump' && castle.boss && castle.boss.type === 'aurelion') return;
+  if (mode === 'quest' && (castle.victoryCutscene || castle.memoryCutscene)) return;
+  if (mode === 'quest' && castle.ruleEffect === 'nojump') return;
   if (!dino.jumping) {
     dino.jumping = true;
     dino.vy = mode === 'quest' ? JUMP_FORCE : currentJumpForce();
@@ -2903,6 +3358,10 @@ function handleCanvasTap() {
   if (mode !== 'quest') { jump(); return; }
   if (castle.victoryCutscene && castle.victoryCutscene.phase === 'text' && castle.victoryCutscene.t > 70) {
     castleFinishVictoryCutscene();
+  }
+  if (castle.memoryCutscene && castle.memoryCutscene.phase === 'scene' && castle.memoryCutscene.t > 60) {
+    castle.memoryCutscene.phase = 'fadeout';
+    castle.memoryCutscene.t = 0;
   }
 }
 canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleCanvasTap(); }, { passive: false });
@@ -3548,8 +4007,20 @@ document.getElementById('hudSideToggleBtn').addEventListener('click', () => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '5.8';
+const APP_VERSION = '5.9';
 const NEWS_LIST = [
+  {
+    version: '5.9',
+    date: '30 Agu 2026',
+    title: '🌙🪞 VELARIA & MIRRORA Bangkit + Kilas Balik Jadi Animasi!',
+    items: [
+      '🆕 2 manifestasi baru bisa dimainkan langsung berurutan: VELARIA (Nafsu) lalu MIRRORA (Iri Hati)!',
+      '🌙 VELARIA: jubah merah, topeng setengah terbuka. Nembakkan portal ilusi — kalau kena, kamu ketarik ke dimensi godaan dan harus MENGHINDARI ikon-ikon yang mendekat (bukan menyerang!) sampai waktunya habis. Berhasil kabur = VELARIA jadi lengah sesaat, serang cepat sebelum dia narik kamu lagi!',
+      '🪞 MIRRORA: tubuh kristal/kaca yang bisa meniru kekuatan manifestasi lain secara acak — kadang niru aturan-ubah AURELION, kadang niru lontaran harta GOLDRAVEN, kadang niru kecepatan & agresivitas dino sendiri.',
+      '🎬 BESAR: kilas balik antar-boss sekarang ANIMASI beneran — siluet Raja Vampir & sosok lain bergerak, partikel bertema (gelembung laut, koin, salju, pecahan kaca), bukan panel teks penuh layar lagi. Subtitle singkat tetap ada di bawah sebagai pelengkap.',
+      '🌑 3 manifestasi lainnya (GORGATH, RAVAGOR, SOMNARA) masih coming soon.'
+    ]
+  },
   {
     version: '5.8',
     date: '30 Agu 2026',

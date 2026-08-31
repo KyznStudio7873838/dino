@@ -896,7 +896,16 @@ const CASTLE_ENEMY_DEFS = {
   zombieBig:   { w: 42, h: 52, hp: 46,  dmg: 14, speed: 0.42, color: '#3f5c33', dark: '#243a1c', scoreOnKill: 16 },
   vampire:     { w: 28, h: 40, hp: 26,  dmg: 11, speed: 0.95, color: '#5a2a3a', dark: '#33141d', scoreOnKill: 14 },
   zombieBoss:  { w: 70, h: 80, hp: 260, dmg: 22, speed: 0.3,  color: '#2e4526', dark: '#182a12', scoreOnKill: 0, isBoss: true, name: 'ZOMBIE RAKSASA' },
-  vampireKing: { w: 60, h: 76, hp: 320, dmg: 26, speed: 0.65, color: '#4a1a2a', dark: '#280d17', scoreOnKill: 0, isBoss: true, name: 'RAJA VAMPIR' }
+  vampireKing: { w: 60, h: 76, hp: 320, dmg: 26, speed: 0.65, color: '#4a1a2a', dark: '#280d17', scoreOnKill: 0, isBoss: true, name: 'RAJA VAMPIR' },
+  aurelion:    { w: 58, h: 84, hp: 360, dmg: 20, speed: 0.5,  color: '#eee6d2', dark: '#0d0710', scoreOnKill: 0, isBoss: true, name: 'AURELION — KESOMBONGAN' },
+  goldraven:   { w: 74, h: 82, hp: 420, dmg: 18, speed: 0.35, color: '#6b3a12', dark: '#3a1f09', scoreOnKill: 0, isBoss: true, name: 'GOLDRAVEN — KETAMAKAN' }
+};
+// AURELION bisa "mengubah aturan permainan" — tiap ~5 detik dia acak 1 efek
+// yang aktif ~3 detik, bikin pertarungan gak monoton.
+const AURELION_RULES = {
+  invert:   { label: 'KONTROL DIBALIK 🔄' },
+  heavygrav:{ label: 'GRAVITASI BERAT ⬇️' },
+  nojump:   { label: 'LOMPAT DIKUNCI 🔒' }
 };
 const CASTLE_SKILLS = [
   { name: 'Cakar', dmg: 12, range: 40, cooldown: 24, icon: '👊' },
@@ -908,7 +917,9 @@ const CASTLE_FLOORS = [
   { name: 'Lantai 1 — Aula Bawah', target: 150, pool: ['zombie'], gap: [65, 105] },
   { name: 'Lantai 2 — Ruang Mutasi', target: 220, pool: ['zombieBig'], gap: [85, 130] },
   { name: 'Lantai 3 — Ruang Boss', target: 0, pool: [], isBossFloor: true, bossType: 'zombieBoss' },
-  { name: 'Lantai 4 — Puncak Kastil', target: 260, kingTarget: 220, pool: ['zombie', 'zombieBig', 'vampire'], gap: [55, 95] }
+  { name: 'Lantai 4 — Puncak Kastil', target: 260, kingTarget: 220, pool: ['zombie', 'zombieBig', 'vampire'], gap: [55, 95] },
+  { name: 'Alam Bawah Sadar — AURELION', target: 0, pool: [], isBossFloor: true, bossType: 'aurelion', subconscious: true },
+  { name: 'Alam Bawah Sadar — GOLDRAVEN', target: 0, pool: [], isBossFloor: true, bossType: 'goldraven', subconscious: true }
 ];
 let castle = {
   floor: 1, hp: 150, maxHp: 150, score: 0,
@@ -919,7 +930,8 @@ let castle = {
   mantraTimer: 0, nextMantraGap: 260,
   attackCooldowns: [0, 0, 0],
   invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false,
-  portal: null, floorCleared: false, victoryCutscene: null
+  portal: null, floorCleared: false, victoryCutscene: null,
+  ruleEffect: null, ruleEffectT: 0, ruleTimer: 0, projectiles: []
 };
 function castleResetRun() {
   castle = {
@@ -931,7 +943,8 @@ function castleResetRun() {
     mantraTimer: 0, nextMantraGap: 260,
     attackCooldowns: [0, 0, 0],
     invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false,
-    portal: null, floorCleared: false, victoryCutscene: null
+    portal: null, floorCleared: false, victoryCutscene: null,
+    ruleEffect: null, ruleEffectT: 0, ruleTimer: 0, projectiles: []
   };
 }
 function castleFloorDef() { return CASTLE_FLOORS[castle.floor]; }
@@ -951,7 +964,8 @@ function castleSpawnBoss(type) {
   castle.boss = {
     type, x: VW / 2 - def.w / 2, y: GROUND_Y - def.h,
     w: def.w, h: def.h, hp: def.hp, maxHp: def.hp,
-    dmg: def.dmg, speed: def.speed, atkCooldown: 0, hitFlash: 0, walkFrame: 0
+    dmg: def.dmg, speed: def.speed, atkCooldown: 0, hitFlash: 0, walkFrame: 0,
+    rangedCooldown: 150, absorbT: 0
   };
   castle.bossActive = true;
   bossBarWrap.style.display = 'block';
@@ -1000,8 +1014,8 @@ function castleVictory() {
 /* ===================== SINEMATIK KEMENANGAN CHAPTER 1 =====================
    Urutan: Raja Vampir tumbang -> portal raksasa muncul nutupin ruangan ->
    dino kesedot masuk -> animasi terowongan portal -> mendarat di ALAM BAWAH
-   SADAR SANG RAJA VAMPIR (bukan makam) ->
-   teks "COMING SOON CHAPTER 2". */
+   SADAR SANG RAJA VAMPIR -> lanjut LANGSUNG ke pertarungan AURELION
+   (Chapter 2 Bab 1: Kesombongan). */
 function castleStartVictoryCutscene() {
   document.getElementById('castleControls').classList.remove('visible');
   document.getElementById('questHud').style.display = 'none';
@@ -1015,7 +1029,88 @@ function castleStartVictoryCutscene() {
 }
 function castleFinishVictoryCutscene() {
   castle.victoryCutscene = null;
-  castleEndGame(true);
+  castleStartAurelionFight();
+}
+function castleStartAurelionFight() {
+  castle.floor = 5;
+  castle.enemies = [];
+  castle.portal = null;
+  castle.floorCleared = false;
+  castle.ruleEffect = null;
+  castle.ruleEffectT = 0;
+  castle.ruleTimer = 0;
+  document.getElementById('castleFloorPill').textContent = '🌑 ALAM BAWAH SADAR';
+  document.getElementById('questHud').style.display = '';
+  document.getElementById('castleControls').classList.add('visible');
+  castleUpdateHpBar();
+  castleToast('👑 AURELION — Manifestasi Kesombongan muncul!');
+  castleSpawnBoss('aurelion');
+}
+function castleStartGoldravenFight() {
+  castle.floor = 6;
+  castle.enemies = [];
+  castle.projectiles = [];
+  castle.portal = null;
+  castle.floorCleared = false;
+  castle.ruleEffect = null;
+  castle.ruleEffectT = 0;
+  castle.ruleTimer = 0;
+  document.getElementById('castleFloorPill').textContent = '🌑 ALAM BAWAH SADAR';
+  document.getElementById('questHud').style.display = '';
+  document.getElementById('castleControls').classList.add('visible');
+  castleUpdateHpBar();
+  castleToast('💰 GOLDRAVEN — Manifestasi Ketamakan muncul!');
+  castleSpawnBoss('goldraven');
+}
+function castleShowLore(title, text, onDone) {
+  document.getElementById('castleControls').classList.remove('visible');
+  document.getElementById('questHud').style.display = 'none';
+  bossBarWrap.style.display = 'none';
+  storyIcon.textContent = '💭';
+  document.getElementById('storyTitle').textContent = title;
+  storyText.textContent = text;
+  storyOverlay.classList.add('active');
+  storyBtn.onclick = () => {
+    storyOverlay.classList.remove('active');
+    storyBtn.onclick = null;
+    if (onDone) onDone();
+  };
+}
+function castleFinishAurelion() {
+  castle.boss = null;
+  castle.bossActive = false;
+  bossBarWrap.style.display = 'none';
+  castle.ruleEffect = null;
+  AudioMgr.sfx('unlock');
+  castleShowLore(
+    '💭 KILAS BALIK: KESOMBONGAN',
+    'Kesombongan Raja Vampir dimulai saat domain Laut Selatan jatuh ke tangannya. Ia mulai berpikir dirinya telah menjadi penguasa sejati — dan menjadi sombong kepada teman-teman seperjuangannya sendiri.',
+    () => {
+      castleShowLore(
+        '💰 GOLDRAVEN Bangkit!',
+        'Manifestasi Ketamakan sang Raja Vampir kini muncul dari bayang-bayang Alam Bawah Sadar...',
+        () => { castleStartGoldravenFight(); }
+      );
+    }
+  );
+}
+function castleFinishGoldraven() {
+  castle.boss = null;
+  castle.bossActive = false;
+  bossBarWrap.style.display = 'none';
+  castle.projectiles = [];
+  AudioMgr.sfx('unlock');
+  castleShowLore(
+    '💭 KILAS BALIK: KETAMAKAN',
+    'Setelah berhasil menguasai domain selatan, ia menjadi sangat serakah — mengambil semua yang ada di sana, menghancurkannya jika merasa tidak puas, dan selalu mencari yang terbaik.',
+    () => {
+      castleShowLore(
+        '🎭 5 Manifestasi Lain Menanti...',
+        'VELARIA (Nafsu) dan 4 manifestasi dosa besar lainnya masih bersembunyi jauh di dalam Alam Bawah Sadar ini.\n\nCOMING SOON — CHAPTER 2 LANJUTAN',
+        () => { castleEndGame(true); }
+      );
+    }
+  );
 }
 function castleUpdateVictoryCutscene() {
   frame++;
@@ -1190,12 +1285,12 @@ function castleDrawComingSoonText(t) {
   ctx.font = "11px 'Baloo 2', sans-serif";
   ctx.fillStyle = 'rgba(184,166,255,0.85)';
   ctx.fillText('ALAM BAWAH SADAR SANG RAJA VAMPIR', 0, -20);
-  ctx.font = "bold 22px 'Baloo 2', sans-serif";
+  ctx.font = "bold 20px 'Baloo 2', sans-serif";
   ctx.fillStyle = '#fff3b0';
-  ctx.fillText('COMING SOON', 0, 8);
-  ctx.font = "bold 18px 'Baloo 2', sans-serif";
-  ctx.fillStyle = '#b8a6ff';
-  ctx.fillText('CHAPTER 2', 0, 30);
+  ctx.fillText('CHAPTER 2 DIMULAI', 0, 8);
+  ctx.font = "bold 15px 'Baloo 2', sans-serif";
+  ctx.fillStyle = '#ff8a8a';
+  ctx.fillText('BAB 1: KESOMBONGAN', 0, 30);
   ctx.restore();
   if (t > 70) {
     ctx.save();
@@ -1336,10 +1431,12 @@ function castleEndGame(victory) {
   state = 'gameover';
   document.getElementById('goStatsNormal').style.display = 'none';
   document.getElementById('goStatsQuest').style.display = '';
-  document.getElementById('goTitle').textContent = victory ? '👑 KASTIL TAMAT!' : '💀 TERTUMBANG DI KASTIL';
+  const aurelionDone = victory && castle.floor === 5;
+  const goldravenDone = victory && castle.floor === 6;
+  document.getElementById('goTitle').textContent = victory ? (goldravenDone ? '💰 GOLDRAVEN TUMBANG!' : aurelionDone ? '👑 AURELION TUMBANG!' : '👑 KASTIL TAMAT!') : '💀 TERTUMBANG DI KASTIL';
   document.getElementById('goTitle').classList.toggle('new-best', victory);
-  document.getElementById('goAge').textContent = victory ? '4 (Tamat)' : String(castle.floor);
-  document.getElementById('goMap').textContent = victory ? 'Raja Vampir Tumbang!' : (CASTLE_FLOORS[castle.floor] ? CASTLE_FLOORS[castle.floor].name : '-');
+  document.getElementById('goAge').textContent = victory ? (goldravenDone ? '6 (Alam Bawah Sadar)' : aurelionDone ? '5 (Alam Bawah Sadar)' : '4 (Tamat)') : String(castle.floor);
+  document.getElementById('goMap').textContent = victory ? (goldravenDone ? 'Manifestasi ke-2 Tumbang!' : aurelionDone ? 'Manifestasi ke-1 Tumbang!' : 'Raja Vampir Tumbang!') : (CASTLE_FLOORS[castle.floor] ? CASTLE_FLOORS[castle.floor].name : '-');
   showScreen('gameover');
 }
 function castleUpdate() {
@@ -1350,15 +1447,35 @@ function castleUpdate() {
   if (castle.shakeT > 0) castle.shakeT--;
   for (let i = 0; i < 3; i++) if (castle.attackCooldowns[i] > 0) castle.attackCooldowns[i]--;
 
-  // gerak dino via joystick analog
-  dino.x += castle.analogX * 3.4;
+  // gerak dino via joystick analog — AURELION bisa "membalik" arah kontrol
+  const effX = castle.ruleEffect === 'invert' ? -castle.analogX : castle.analogX;
+  dino.x += effX * 3.4;
   dino.x = Math.max(8, Math.min(VW - dino.w - 8, dino.x));
-  if (castle.analogX > 0.05) castle.facing = 1;
-  else if (castle.analogX < -0.05) castle.facing = -1;
+  if (effX > 0.05) castle.facing = 1;
+  else if (effX < -0.05) castle.facing = -1;
   if (dino.jumping) {
-    dino.vy += GRAVITY;
+    dino.vy += (castle.ruleEffect === 'heavygrav' ? GRAVITY * 2.2 : GRAVITY);
     dino.y += dino.vy;
     if (dino.y >= GROUND_Y - dino.h) { dino.y = GROUND_Y - dino.h; dino.jumping = false; dino.vy = 0; }
+  }
+
+  // AURELION: tiap ~5 detik acak 1 "aturan permainan" baru selama boss dia masih hidup
+  if (castle.boss && castle.boss.type === 'aurelion') {
+    if (castle.ruleEffect) {
+      castle.ruleEffectT--;
+      if (castle.ruleEffectT <= 0) castle.ruleEffect = null;
+    } else {
+      castle.ruleTimer++;
+      if (castle.ruleTimer > 300) {
+        castle.ruleTimer = 0;
+        const keys = Object.keys(AURELION_RULES);
+        const pick = keys[Math.floor(Math.random() * keys.length)];
+        castle.ruleEffect = pick;
+        castle.ruleEffectT = 170;
+        castleToast(`👑 AURELION mengubah aturan: ${AURELION_RULES[pick].label}`);
+        AudioMgr.sfx('unlock');
+      }
+    }
   }
 
   // spawn musuh biasa (non-boss floor, atau floor 4 sebelum raja muncul) — berhenti kalau lantai sudah clear/portal aktif
@@ -1413,13 +1530,41 @@ function castleUpdate() {
       castleTakeDamage(b.dmg);
       b.atkCooldown = 85;
     }
+    // GOLDRAVEN: menyerap "harta" di sekitar arena, lalu melontarkannya balik
+    // sebagai proyektil ke dino — musuh jarak jauh pertama di Kastil.
+    if (b.type === 'goldraven') {
+      if (b.absorbT > 0) b.absorbT--;
+      b.rangedCooldown--;
+      if (b.rangedCooldown <= 0) {
+        b.rangedCooldown = 210;
+        b.absorbT = 26;
+        const bx = b.x + b.w / 2, by = b.y + b.h * 0.32;
+        const tx = dino.x + dino.w / 2, ty = dino.y + dino.h / 2;
+        const dx = tx - bx, dy = ty - by;
+        const dist = Math.max(1, Math.hypot(dx, dy));
+        const spd = 3.1;
+        castle.projectiles.push({ x: bx, y: by, vx: dx / dist * spd, vy: dy / dist * spd, dmg: 14, life: 160 });
+        castleToast('💰 GOLDRAVEN melontarkan hartanya!');
+        AudioMgr.sfx('coin');
+      }
+    }
     castleUpdateBossBar();
     if (b.hp <= 0) {
       AudioMgr.sfx('unlock');
       castle.boss = null;
       castle.bossActive = false;
       bossBarWrap.style.display = 'none';
-      if (f.isBossFloor) {
+      if (b.type === 'aurelion') {
+        castleFinishAurelion();
+        castleUpdateHpBar();
+        castleUpdateProgress();
+        return;
+      } else if (b.type === 'goldraven') {
+        castleFinishGoldraven();
+        castleUpdateHpBar();
+        castleUpdateProgress();
+        return;
+      } else if (f.isBossFloor) {
         castleSpawnPortal();
       } else {
         castleVictory();
@@ -1431,6 +1576,22 @@ function castleUpdate() {
         castleUpdateHpBar();
         castleUpdateProgress();
         return;
+      }
+    }
+  }
+
+  // update proyektil (dipakai GOLDRAVEN & boss-boss jarak jauh berikutnya)
+  if (castle.projectiles.length) {
+    const dcx = dino.x + dino.w / 2, dcy = dino.y + dino.h / 2;
+    for (let i = castle.projectiles.length - 1; i >= 0; i--) {
+      const p = castle.projectiles[i];
+      p.x += p.vx; p.y += p.vy; p.life--;
+      const dist = Math.hypot(p.x - dcx, p.y - dcy);
+      if (dist < 18) {
+        castleTakeDamage(p.dmg);
+        castle.projectiles.splice(i, 1);
+      } else if (p.life <= 0 || p.x < -50 || p.x > VW + 50 || p.y < -50 || p.y > VH + 50) {
+        castle.projectiles.splice(i, 1);
       }
     }
   }
@@ -1609,6 +1770,148 @@ function castleDrawVampireBody(e, def, flash) {
     ctx.beginPath(); ctx.arc(0, -h * 0.85, w * 0.34 + 5, 0, Math.PI * 2); ctx.stroke();
   }
 }
+function castleDrawAurelionBody(e, def, flash) {
+  const w = e.w, h = e.h;
+  const sway = Math.sin(e.walkFrame * 0.4) * 0.05;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.44, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+
+  // jubah hitam panjang mengembang di belakang
+  ctx.save();
+  ctx.rotate(sway * 0.3);
+  ctx.fillStyle = flash ? '#ffdddd' : '#0d0710';
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.34, -h * 0.66);
+  ctx.lineTo(-w * 0.64, h * 0.04);
+  ctx.lineTo(-w * 0.2, -h * 0.1);
+  ctx.lineTo(0, -h * 0.02);
+  ctx.lineTo(w * 0.2, -h * 0.1);
+  ctx.lineTo(w * 0.64, h * 0.04);
+  ctx.lineTo(w * 0.34, -h * 0.66);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+
+  // pedang besar "Vanity" terselip di punggung
+  ctx.save();
+  ctx.translate(w * 0.36, -h * 0.55);
+  ctx.rotate(0.55);
+  ctx.fillStyle = '#cfd6e0';
+  ctx.fillRect(-3, -h * 0.5, 6, h * 0.5);
+  ctx.fillStyle = '#c9a227';
+  ctx.fillRect(-10, -2, 20, 6);
+  ctx.restore();
+
+  // armor putih-keemasan
+  ctx.fillStyle = flash ? '#ffffff' : '#eee6d2';
+  roundRectPath(ctx, -w * 0.3, -h * 0.78, w * 0.6, h * 0.58, w * 0.14);
+  ctx.fill();
+  ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2;
+  ctx.strokeRect(-w * 0.3 + 3, -h * 0.78 + 4, w * 0.6 - 6, h * 0.58 - 8);
+
+  // kepala datar sombong + mahkota emas retak
+  ctx.save();
+  ctx.translate(0, -h * 0.9);
+  ctx.rotate(sway);
+  ctx.fillStyle = flash ? '#ffffff' : '#e8d6c8';
+  ctx.beginPath(); ctx.arc(0, 0, w * 0.28, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#3a2e26'; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(-w * 0.08, w * 0.1); ctx.lineTo(w * 0.08, w * 0.1); ctx.stroke();
+  ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = 6;
+  ctx.fillStyle = '#ff3b3b';
+  ctx.beginPath(); ctx.arc(-w * 0.1, -w * 0.02, 2.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w * 0.1, -w * 0.02, 2.2, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#e8c15c';
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.26, -w * 0.22); ctx.lineTo(-w * 0.26, -w * 0.34); ctx.lineTo(-w * 0.14, -w * 0.44);
+  ctx.lineTo(-w * 0.05, -w * 0.3); ctx.lineTo(0, -w * 0.48); ctx.lineTo(w * 0.05, -w * 0.3);
+  ctx.lineTo(w * 0.14, -w * 0.44); ctx.lineTo(w * 0.26, -w * 0.34); ctx.lineTo(w * 0.26, -w * 0.22);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = 'rgba(40,20,10,0.8)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(-w * 0.05, -w * 0.36); ctx.lineTo(w * 0.03, -w * 0.24); ctx.stroke();
+  ctx.restore();
+
+  ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, -h * 0.9, w * 0.34 + 6, 0, Math.PI * 2); ctx.stroke();
+}
+function castleDrawGoldravenBody(e, def, flash) {
+  const w = e.w, h = e.h;
+  const sway = Math.sin(e.walkFrame * 0.3) * 0.04;
+  ctx.fillStyle = 'rgba(0,0,0,0.38)';
+  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.46, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+
+  // tubuh besar berarmor kerajaan
+  ctx.save();
+  ctx.rotate(sway * 0.2);
+  ctx.fillStyle = flash ? '#ffffff' : '#5a2f0a';
+  roundRectPath(ctx, -w * 0.4, -h * 0.76, w * 0.8, h * 0.6, w * 0.16);
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = '#e8c15c'; ctx.lineWidth = 3;
+  ctx.strokeRect(-w * 0.4 + 4, -h * 0.76 + 5, w * 0.8 - 8, h * 0.6 - 10);
+
+  // perhiasan: koin, permata, emas nempel di sekujur badan
+  const jewelColors = ['#ff5d5d', '#5dc7ff', '#7ee696', '#ffd63c'];
+  for (let i = 0; i < 7; i++) {
+    const jx = -w * 0.3 + (i % 3) * w * 0.3 + (i >= 3 ? w * 0.06 : 0);
+    const jy = -h * 0.6 + Math.floor(i / 3) * h * 0.2;
+    ctx.fillStyle = jewelColors[i % jewelColors.length];
+    ctx.beginPath(); ctx.arc(jx, jy, 3.4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.8; ctx.stroke();
+  }
+  // pundak emas besar (pauldron)
+  ctx.fillStyle = '#e8c15c';
+  ctx.beginPath(); ctx.arc(-w * 0.4, -h * 0.72, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w * 0.4, -h * 0.72, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ff5d5d';
+  ctx.beginPath(); ctx.arc(-w * 0.4, -h * 0.72, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w * 0.4, -h * 0.72, 3, 0, Math.PI * 2); ctx.fill();
+
+  // kepala tamak + mahkota kecil bergerigi emas
+  ctx.save();
+  ctx.translate(0, -h * 0.9);
+  ctx.rotate(sway);
+  ctx.fillStyle = flash ? '#ffffff' : '#c88a52';
+  ctx.beginPath(); ctx.arc(0, 0, w * 0.26, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ff3b3b';
+  ctx.beginPath(); ctx.arc(-w * 0.09, -w * 0.02, 2.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(w * 0.09, -w * 0.02, 2.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e8c15c';
+  ctx.fillRect(-w * 0.2, -w * 0.32, w * 0.4, 6);
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-w * 0.16 + i * w * 0.16, -w * 0.32);
+    ctx.lineTo(-w * 0.16 + i * w * 0.16 + w * 0.05, -w * 0.44);
+    ctx.lineTo(-w * 0.16 + i * w * 0.16 + w * 0.1, -w * 0.32);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+
+  // efek "menyerap harta" — cincin cahaya emas berkedip pas dia mau nembak
+  if (e.absorbT > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, e.absorbT / 26) * 0.7;
+    ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(0, -h * 0.5, w * 0.55 + (26 - e.absorbT) * 1.8, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  }
+
+  ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(0, -h * 0.9, w * 0.34 + 8, 0, Math.PI * 2); ctx.stroke();
+}
+function castleDrawProjectile(p) {
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.rotate(frame * 0.25);
+  ctx.shadowColor = 'rgba(255,214,60,0.8)'; ctx.shadowBlur = 8;
+  ctx.fillStyle = '#ffd63c';
+  ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff8d0';
+  ctx.beginPath(); ctx.arc(-2, -2, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
 function castleDrawEnemy(e) {
   const def = CASTLE_ENEMY_DEFS[e.type];
   ctx.save();
@@ -1616,7 +1919,11 @@ function castleDrawEnemy(e) {
   const bob = Math.sin(e.walkFrame) * 2;
   ctx.translate(0, bob);
   const flash = e.hitFlash > 0;
-  if (e.type === 'vampire' || e.type === 'vampireKing') {
+  if (e.type === 'aurelion') {
+    castleDrawAurelionBody(e, def, flash);
+  } else if (e.type === 'goldraven') {
+    castleDrawGoldravenBody(e, def, flash);
+  } else if (e.type === 'vampire' || e.type === 'vampireKing') {
     castleDrawVampireBody(e, def, flash);
   } else {
     castleDrawZombieBody(e, def, flash);
@@ -1702,11 +2009,16 @@ function castleDrawBackground() {
 }
 function castleDraw() {
   if (castle.victoryCutscene) { castleDrawVictoryCutscene(); return; }
-  castleDrawBackground();
+  if (castleFloorDef() && castleFloorDef().subconscious) {
+    castleDrawSubconsciousBackground();
+  } else {
+    castleDrawBackground();
+  }
   if (castle.portal) castleDrawPortal(castle.portal);
   castle.mantras.forEach(castleDrawMantra);
   castle.enemies.slice().sort((a, b) => a.y - b.y).forEach(castleDrawEnemy);
   if (castle.boss) castleDrawEnemy(castle.boss);
+  castle.projectiles.forEach(castleDrawProjectile);
   const s = getSkin(data.selectedSkin);
   let alpha = 1;
   if (castle.invincible > 0 && Math.floor(frame / 4) % 2 === 0) alpha = 0.4;
@@ -2574,6 +2886,7 @@ function maybeChangeBiome() {
 function jump() {
   if (state !== 'playing' || qPaused || paused) return;
   if (mode === 'quest' && castle.victoryCutscene) return;
+  if (mode === 'quest' && castle.ruleEffect === 'nojump' && castle.boss && castle.boss.type === 'aurelion') return;
   if (!dino.jumping) {
     dino.jumping = true;
     dino.vy = mode === 'quest' ? JUMP_FORCE : currentJumpForce();
@@ -3235,8 +3548,32 @@ document.getElementById('hudSideToggleBtn').addEventListener('click', () => {
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '5.6';
+const APP_VERSION = '5.8';
 const NEWS_LIST = [
+  {
+    version: '5.8',
+    date: '30 Agu 2026',
+    title: '💰 GOLDRAVEN Bangkit — Manifestasi Ketamakan!',
+    items: [
+      '🆕 Setelah AURELION tumbang, dino langsung lanjut lawan GOLDRAVEN — manifestasi Ketamakan sang Raja Vampir!',
+      '💰 GOLDRAVEN: tubuh besar dipenuhi perhiasan (emas, permata, koin), pakai armor kerajaan lengkap dengan mahkota bergerigi.',
+      '🎯 Kekuatan uniknya — "menyerap & melontarkan harta": tiap ~3.5 detik dia berkedip cincin emas lalu melontarkan proyektil harta ke arah dino. Ini boss jarak jauh pertama di Kastil, jadi harus pintar gerak/lompat buat ngehindar!',
+      '💭 Setelah GOLDRAVEN tumbang, muncul kilas balik cerita soal keserakahannya usai menguasai domain selatan.',
+      '🌑 4 manifestasi dosa lainnya (VELARIA, MIRRORA, GORGATH, RAVAGOR) + boss akhir SOMNARA masih coming soon, dibangun satu-satu di update berikutnya.'
+    ]
+  },
+  {
+    version: '5.7',
+    date: '30 Agu 2026',
+    title: '👑 CHAPTER 2 DIMULAI: AURELION — Manifestasi Kesombongan!',
+    items: [
+      '🆕 Chapter 2 gak lagi cuma "coming soon" — begitu Raja Vampir tumbang & animasi Alam Bawah Sadar selesai, dino LANGSUNG lawan AURELION, manifestasi pertama dari 7 dosa besar!',
+      '👑 AURELION: mahkota emas retak, jubah hitam panjang, armor putih-keemasan, mata merah menyala, membawa pedang besar berukir "Vanity".',
+      '🎲 Kekuatan unik AURELION — "ubah aturan permainan": tiap ~5 detik dia acak 1 efek (kontrol dibalik / gravitasi berat / lompat dikunci) yang aktif ~3 detik. Baca toast peringatannya biar gak kena jebak!',
+      '💭 Setelah AURELION tumbang, muncul kilas balik cerita kenapa Raja Vampir jadi sombong (jatuhnya domain Laut Selatan) — lewat panel cerita baru.',
+      '🌑 5 manifestasi dosa lainnya (GOLDRAVEN, VELARIA, MIRRORA, GORGATH, RAVAGOR) + boss akhir SOMNARA masih coming soon, dibangun satu-satu di update berikutnya.'
+    ]
+  },
   {
     version: '5.6',
     date: '30 Agu 2026',

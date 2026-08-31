@@ -1596,8 +1596,22 @@ body[data-gfx="rendah"] .buff-chip {
     border: 2px solid rgba(255,255,255,0.15);
   }
   #storyDots { display: none; }
-  #storyOverlay h3 { display: none; }
-  #storyOverlay p { display: none; }
+  #storyOverlay h3 {
+    display: block;
+    font-size: 17px;
+    color: #ffd63c;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  }
+  #storyOverlay p {
+    display: block;
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: #e8e2f0;
+    margin-bottom: 20px;
+    white-space: pre-line;
+  }
   #storyOverlay button {
     font-family: 'Baloo 2', 'Nunito', sans-serif;
     font-size: 14px;

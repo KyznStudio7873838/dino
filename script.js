@@ -339,6 +339,7 @@ function switchProfile(id) {
   }
   localStorage.setItem('dinoActiveProfileId', id);
   data = loadData();
+  ensureEventGhostDefaults();
   refreshLobbyStats();
   renderAccountScreen();
 }
@@ -358,6 +359,7 @@ function deleteProfile(id) {
       localStorage.setItem('dinoActiveProfileId', newId);
     }
     data = loadData();
+    ensureEventGhostDefaults();
     refreshLobbyStats();
   }
   renderAccountScreen();
@@ -412,6 +414,7 @@ function handleImportSaveFile(file) {
     localStorage.setItem(profileStorageKey(id, 'castleMantraCount'), String(payload.data.castleMantraCount || 0));
     localStorage.setItem(profileStorageKey(id, 'castleBestFloor'), String(payload.data.castleBestFloor || 1));
     data = loadData();
+    ensureEventGhostDefaults();
     refreshLobbyStats();
     renderAccountScreen();
     alert('Save berhasil dipulihkan sebagai profil baru.');
@@ -561,6 +564,7 @@ async function pullServerDataIntoActiveProfile() {
   set('castleMantraCount', String(d.castleMantraCount || 0));
   set('castleBestFloor', String(d.castleBestFloor || 1));
   data = loadData();
+  ensureEventGhostDefaults();
   refreshLobbyStats();
 }
 
@@ -655,12 +659,11 @@ function loadData() {
   };
 }
 let data = loadData();
-// Pastikan struktur progres event Hantu selalu lengkap (jaga-jaga kalau
+// Pastikan struktur progres event Halloween selalu lengkap (jaga-jaga kalau
 // profil ini belum pernah punya field ini sama sekali sebelum event ada).
-if (!data.eventGhost || typeof data.eventGhost !== 'object') data.eventGhost = {};
-data.eventGhost.nightPasses = data.eventGhost.nightPasses || 0;
-data.eventGhost.mission1Done = !!data.eventGhost.mission1Done;
-data.eventGhost.mission2Done = !!data.eventGhost.mission2Done;
+// ensureEventGhostDefaults() didefinisikan di bawah tapi function declaration
+// di-hoist penuh oleh JS, jadi aman dipanggil di sini.
+ensureEventGhostDefaults();
 function saveData() {
   const pid = getActiveProfileId();
   const set = (key, val) => localStorage.setItem(profileStorageKey(pid, key), val);
@@ -697,7 +700,7 @@ function qSaveCheckpoint(mapIndex, completed) {
   if (completed) {
     data.questProgress = null;
     data.questCompleted = true;
-    // Buka semua skin hadiah begitu story mode tamat —
+    // Buka semua skin hadiah (misal Naga Emas) begitu story mode tamat —
     // KECUALI skin hadiah event (eventOnly), itu cuma bisa didapat lewat misi event-nya sendiri.
     SKINS.filter(s => s.rewardOnly && !s.eventOnly).forEach(s => {
       if (!data.unlocked.includes(s.id)) data.unlocked.push(s.id);
@@ -734,6 +737,11 @@ const SKINS = [
   { id: 5, name: 'Ungu Misteri', cost: 300,
     body: '#8a4fd9', head: '#6a34ad', belly: '#e8d3ff', eye: '#fff',
     spikeStyle: 'crown', pattern: 'stripes', tailStyle: 'spiked', horn: true, affinity: 'all' },
+  { id: 6, name: 'Naga Emas', cost: 0, rewardOnly: true, rewardLabel: 'Hadiah tamat Chapter 1',
+    body: '#f2c33c', head: '#a9720f', belly: '#fff6c9', eye: '#ff5722',
+    spikeStyle: 'flame', pattern: 'stars', tailStyle: 'spiked', horn: true, hornStyle: 'twin', hornColor: '#8a5a10',
+    wings: true, wingColor: '#e8ac1f', wingLight: '#fff3b0',
+    shimmer: true, shimmerColor: '#fff6cf', shimmerDark: '#c98a12', affinity: 'all' },
   { id: 7, name: 'Kristal Berlian', cost: 60, costType: 'diamond',
     body: '#bfe9ff', head: '#8fd3f0', belly: '#eafcff', eye: '#1c2440',
     spikeStyle: 'fin', pattern: 'scales', tailStyle: 'fin', horn: true, hornColor: '#5ec8ff',
@@ -750,6 +758,11 @@ const SKINS = [
     body: '#e6e0f5', head: '#cfc4ea', belly: '#ffffff', eye: '#3a2a5c',
     spikeStyle: 'none', pattern: 'plain', tailStyle: 'wisp', horn: false,
     ghostly: true, affinity: 'ghost' },
+  { id: 11, name: 'Labu Seram', cost: 0, rewardOnly: true, eventOnly: true,
+    rewardLabel: 'Hadiah Event Halloween — Misi 3',
+    body: '#ff7a1a', head: '#b8520a', belly: '#ffd9a0', eye: '#1a0a00',
+    spikeStyle: 'crown', pattern: 'stripes', tailStyle: 'spiked', horn: true, hornStyle: 'twin', hornColor: '#3a1a08',
+    shimmer: true, shimmerColor: '#ffcf6b', shimmerDark: '#8a3a0a', affinity: 'candy' },
 ];
 function getSkin(id) { return SKINS.find(s => s.id === id) || SKINS[0]; }
 // Label singkat yang dipakai di kartu Toko biar pemain LANGSUNG tau efek
@@ -765,6 +778,7 @@ function skinAffinityLabel(affinity) {
     slowmo: '🐌 Buff Perlambat +50% lama',
     shield: '🛡 Buff Perisai +50% lama',
     ghost: '👻 Buff Hantu +50% lama',
+    candy: '🍬 Buff Permen: bonus koin lebih besar',
     all: '★ SEMUA buff +50% lebih kuat'
   };
   return map[affinity] || '';
@@ -774,6 +788,7 @@ function skinAffinityShortLabel(affinity) {
   if (affinity === 'all') return '★ SEMUA BUFF +50%';
   if (affinity === 'coin2x') return '🪙 2X KOIN → 3X';
   if (affinity === 'life') return '❤ BONUS KOIN NYAWA';
+  if (affinity === 'candy') return '🍬 BONUS KOIN PERMEN';
   const b = BUFF_TYPES[affinity];
   return b ? `${b.icon} ${b.label} +50%` : '';
 }
@@ -793,6 +808,9 @@ const TRAIL_EFFECTS = [
   { id: 8, name: 'Jejak Hantu', cost: 0, rewardOnly: true, eventOnly: true,
     rewardLabel: 'Hadiah Event Hantu — Misi 1',
     type: 'ghost', color: '#b8a6ff', color2: '#f0eaff' },
+  { id: 9, name: 'Jejak Labu Api', cost: 0, rewardOnly: true, eventOnly: true,
+    rewardLabel: 'Hadiah Event Halloween — Misi 4',
+    type: 'pumpkinfire', color: '#ff7a1a', color2: '#8a2fd9' },
 ];
 function getTrail(id) { return TRAIL_EFFECTS.find(t => t.id === id) || TRAIL_EFFECTS[0]; }
 const RAINBOW_COLORS = ['#ff6b6b', '#ffb238', '#ffe36b', '#7ed957', '#4fd6c8', '#5ec8ff', '#b06fff'];
@@ -806,7 +824,8 @@ const BUFF_TYPES = {
   magnet: { icon: '🧲', label: 'MAGNET',     color: '#b06fff', duration: 360 },
   slowmo: { icon: '🐌', label: 'PERLAMBAT WAKTU', color: '#4fe0a0', duration: 260 },
   life:   { icon: '❤',  label: 'NYAWA',      color: '#ff5d7a', duration: 0 },
-  ghost:  { icon: '👻', label: 'HANTU',      color: '#b8a6ff', duration: 240 }
+  ghost:  { icon: '👻', label: 'HANTU',      color: '#b8a6ff', duration: 240 },
+  candy:  { icon: '🍬', label: 'PERMEN',     color: '#ff9f43', duration: 0 }
 };
 let activeBuffs = { speed: 0, jump: 0, coin2x: 0, shield: 0, magnet: 0, slowmo: 0, ghost: 0 };
 let dinoTrail = [];
@@ -847,6 +866,15 @@ function applyBuff(type) {
       runCoins += bonus;
       spawnPopup(dino.x + dino.w / 2, dino.y - 10, `+${bonus} KOIN`, '#ffd23c');
     }
+    return;
+  }
+  // Buff Halloween "Permen": langsung kasih bonus koin instan (mirip pola buff
+  // Nyawa di atas, bukan buff berdurasi) + dihitung buat progres Misi 3 event.
+  if (type === 'candy') {
+    const bonus = boosted ? 40 : 20;
+    runCoins += bonus;
+    spawnPopup(dino.x + dino.w / 2, dino.y - 10, boosted ? `+${bonus} KOIN (BONUS SKIN!)` : `+${bonus} KOIN`, '#ff9f43');
+    registerCandyCollected();
     return;
   }
   const base = BUFF_TYPES[type].duration;
@@ -896,18 +924,7 @@ const CASTLE_ENEMY_DEFS = {
   zombieBig:   { w: 42, h: 52, hp: 46,  dmg: 14, speed: 0.42, color: '#3f5c33', dark: '#243a1c', scoreOnKill: 16 },
   vampire:     { w: 28, h: 40, hp: 26,  dmg: 11, speed: 0.95, color: '#5a2a3a', dark: '#33141d', scoreOnKill: 14 },
   zombieBoss:  { w: 70, h: 80, hp: 260, dmg: 22, speed: 0.3,  color: '#2e4526', dark: '#182a12', scoreOnKill: 0, isBoss: true, name: 'ZOMBIE RAKSASA' },
-  vampireKing: { w: 60, h: 76, hp: 320, dmg: 26, speed: 0.65, color: '#4a1a2a', dark: '#280d17', scoreOnKill: 0, isBoss: true, name: 'RAJA VAMPIR' },
-  aurelion:    { w: 58, h: 84, hp: 360, dmg: 20, speed: 0.5,  color: '#eee6d2', dark: '#0d0710', scoreOnKill: 0, isBoss: true, name: 'AURELION — KESOMBONGAN' },
-  goldraven:   { w: 74, h: 82, hp: 420, dmg: 18, speed: 0.35, color: '#6b3a12', dark: '#3a1f09', scoreOnKill: 0, isBoss: true, name: 'GOLDRAVEN — KETAMAKAN' },
-  velaria:     { w: 56, h: 78, hp: 400, dmg: 16, speed: 0.55, color: '#8a1a2a', dark: '#3a0a10', scoreOnKill: 0, isBoss: true, name: 'VELARIA — NAFSU' },
-  mirrora:     { w: 54, h: 80, hp: 440, dmg: 18, speed: 0.5,  color: '#b8a6ff', dark: '#4a3f6b', scoreOnKill: 0, isBoss: true, name: 'MIRRORA — IRI HATI' }
-};
-// AURELION bisa "mengubah aturan permainan" — tiap ~5 detik dia acak 1 efek
-// yang aktif ~3 detik, bikin pertarungan gak monoton.
-const AURELION_RULES = {
-  invert:   { label: 'KONTROL DIBALIK 🔄' },
-  heavygrav:{ label: 'GRAVITASI BERAT ⬇️' },
-  nojump:   { label: 'LOMPAT DIKUNCI 🔒' }
+  vampireKing: { w: 60, h: 76, hp: 320, dmg: 26, speed: 0.65, color: '#4a1a2a', dark: '#280d17', scoreOnKill: 0, isBoss: true, name: 'RAJA VAMPIR' }
 };
 const CASTLE_SKILLS = [
   { name: 'Cakar', dmg: 12, range: 40, cooldown: 24, icon: '👊' },
@@ -919,11 +936,7 @@ const CASTLE_FLOORS = [
   { name: 'Lantai 1 — Aula Bawah', target: 150, pool: ['zombie'], gap: [65, 105] },
   { name: 'Lantai 2 — Ruang Mutasi', target: 220, pool: ['zombieBig'], gap: [85, 130] },
   { name: 'Lantai 3 — Ruang Boss', target: 0, pool: [], isBossFloor: true, bossType: 'zombieBoss' },
-  { name: 'Lantai 4 — Puncak Kastil', target: 260, kingTarget: 220, pool: ['zombie', 'zombieBig', 'vampire'], gap: [55, 95] },
-  { name: 'Alam Bawah Sadar — AURELION', target: 0, pool: [], isBossFloor: true, bossType: 'aurelion', subconscious: true },
-  { name: 'Alam Bawah Sadar — GOLDRAVEN', target: 0, pool: [], isBossFloor: true, bossType: 'goldraven', subconscious: true },
-  { name: 'Alam Bawah Sadar — VELARIA', target: 0, pool: [], isBossFloor: true, bossType: 'velaria', subconscious: true },
-  { name: 'Alam Bawah Sadar — MIRRORA', target: 0, pool: [], isBossFloor: true, bossType: 'mirrora', subconscious: true }
+  { name: 'Lantai 4 — Puncak Kastil', target: 260, kingTarget: 220, pool: ['zombie', 'zombieBig', 'vampire'], gap: [55, 95] }
 ];
 let castle = {
   floor: 1, hp: 150, maxHp: 150, score: 0,
@@ -933,10 +946,7 @@ let castle = {
   spawnTimer: 0, nextSpawnGap: 80,
   mantraTimer: 0, nextMantraGap: 260,
   attackCooldowns: [0, 0, 0],
-  invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false,
-  portal: null, floorCleared: false, victoryCutscene: null,
-  ruleEffect: null, ruleEffectT: 0, ruleTimer: 0, projectiles: [],
-  memoryCutscene: null, illusion: null
+  invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false
 };
 function castleResetRun() {
   castle = {
@@ -947,10 +957,7 @@ function castleResetRun() {
     spawnTimer: 0, nextSpawnGap: 80,
     mantraTimer: 0, nextMantraGap: 260,
     attackCooldowns: [0, 0, 0],
-    invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false,
-    portal: null, floorCleared: false, victoryCutscene: null,
-    ruleEffect: null, ruleEffectT: 0, ruleTimer: 0, projectiles: [],
-    memoryCutscene: null, illusion: null
+    invincible: 0, analogX: 0, facing: 1, shakeT: 0, completed: false
   };
 }
 function castleFloorDef() { return CASTLE_FLOORS[castle.floor]; }
@@ -970,9 +977,7 @@ function castleSpawnBoss(type) {
   castle.boss = {
     type, x: VW / 2 - def.w / 2, y: GROUND_Y - def.h,
     w: def.w, h: def.h, hp: def.hp, maxHp: def.hp,
-    dmg: def.dmg, speed: def.speed, atkCooldown: 0, hitFlash: 0, walkFrame: 0,
-    rangedCooldown: 150, absorbT: 0, vulnT: 0,
-    mimicMode: null, mimicT: 0, mimicCooldown: 240
+    dmg: def.dmg, speed: def.speed, atkCooldown: 0, hitFlash: 0, walkFrame: 0
   };
   castle.bossActive = true;
   bossBarWrap.style.display = 'block';
@@ -984,20 +989,12 @@ function castleSpawnMantra() {
   const type = needSkill && Math.random() < 0.5 ? 'skill' : 'hp';
   castle.mantras.push({ type, x: 30 + Math.random() * (VW - 60), y: GROUND_Y - 22, bob: Math.random() * Math.PI * 2 });
 }
-function castleSpawnPortal() {
-  if (castle.portal) return;
-  castle.floorCleared = true;
-  castle.portal = { x: VW - 56, y: GROUND_Y, r: 30, t: 0 };
-  castleToast('🌀 Portal muncul! Masuk portalnya buat lanjut ke lantai berikutnya');
-}
 function castleAdvanceFloor() {
   castle.floor++;
   castle.score = 0;
   castle.enemies = [];
   castle.boss = null;
   castle.bossActive = false;
-  castle.portal = null;
-  castle.floorCleared = false;
   bossBarWrap.style.display = 'none';
   castle.spawnTimer = 0;
   if (castle.floor > 4) {
@@ -1015,597 +1012,10 @@ function castleVictory() {
   castle.completed = true;
   state = 'playing';
   data.castleProgress = { completed: true };
+  data.castleMantraCount = (data.castleMantraCount || 0) + 0;
   saveData();
-  castleStartVictoryCutscene();
-}
-/* ===================== SINEMATIK KEMENANGAN CHAPTER 1 =====================
-   Urutan: Raja Vampir tumbang -> portal raksasa muncul nutupin ruangan ->
-   dino kesedot masuk -> animasi terowongan portal -> mendarat di ALAM BAWAH
-   SADAR SANG RAJA VAMPIR -> lanjut LANGSUNG ke pertarungan AURELION
-   (Chapter 2 Bab 1: Kesombongan). */
-function castleStartVictoryCutscene() {
-  document.getElementById('castleControls').classList.remove('visible');
-  document.getElementById('questHud').style.display = 'none';
-  bossBarWrap.style.display = 'none';
-  castle.victoryCutscene = {
-    phase: 'grow', t: 0,
-    portalX: VW / 2, portalY: GROUND_Y - 30,
-    dinoStartX: dino.x, dinoStartY: dino.y
-  };
-  AudioMgr.sfx('unlock');
-}
-function castleFinishVictoryCutscene() {
-  castle.victoryCutscene = null;
-  castleStartAurelionFight();
-}
-function castleStartAurelionFight() {
-  castle.floor = 5;
-  castle.enemies = [];
-  castle.portal = null;
-  castle.floorCleared = false;
-  castle.ruleEffect = null;
-  castle.ruleEffectT = 0;
-  castle.ruleTimer = 0;
-  document.getElementById('castleFloorPill').textContent = '🌑 ALAM BAWAH SADAR';
-  document.getElementById('questHud').style.display = '';
-  document.getElementById('castleControls').classList.add('visible');
-  castleUpdateHpBar();
-  castleToast('👑 AURELION — Manifestasi Kesombongan muncul!');
-  castleSpawnBoss('aurelion');
-}
-function castleStartGoldravenFight() {
-  castle.floor = 6;
-  castle.enemies = [];
-  castle.projectiles = [];
-  castle.portal = null;
-  castle.floorCleared = false;
-  castle.ruleEffect = null;
-  castle.ruleEffectT = 0;
-  castle.ruleTimer = 0;
-  document.getElementById('castleFloorPill').textContent = '🌑 ALAM BAWAH SADAR';
-  document.getElementById('questHud').style.display = '';
-  document.getElementById('castleControls').classList.add('visible');
-  castleUpdateHpBar();
-  castleToast('💰 GOLDRAVEN — Manifestasi Ketamakan muncul!');
-  castleSpawnBoss('goldraven');
-}
-function castleStartVelariaFight() {
-  castle.floor = 7;
-  castle.enemies = [];
-  castle.projectiles = [];
-  castle.portal = null;
-  castle.floorCleared = false;
-  castle.ruleEffect = null;
-  castle.ruleEffectT = 0;
-  castle.ruleTimer = 0;
-  castle.illusion = null;
-  document.getElementById('castleFloorPill').textContent = '🌑 ALAM BAWAH SADAR';
-  document.getElementById('questHud').style.display = '';
-  document.getElementById('castleControls').classList.add('visible');
-  castleUpdateHpBar();
-  castleToast('🌙 VELARIA — Manifestasi Nafsu muncul!');
-  castleSpawnBoss('velaria');
-}
-function castleStartMirroraFight() {
-  castle.floor = 8;
-  castle.enemies = [];
-  castle.projectiles = [];
-  castle.portal = null;
-  castle.floorCleared = false;
-  castle.ruleEffect = null;
-  castle.ruleEffectT = 0;
-  castle.ruleTimer = 0;
-  document.getElementById('castleFloorPill').textContent = '🌑 ALAM BAWAH SADAR';
-  document.getElementById('questHud').style.display = '';
-  document.getElementById('castleControls').classList.add('visible');
-  castleUpdateHpBar();
-  castleToast('🪞 MIRRORA — Manifestasi Iri Hati muncul!');
-  castleSpawnBoss('mirrora');
-}
-/* ===================== SINEMATIK KILAS BALIK (ANIMASI, BUKAN TEKS) =====================
-   Tiap manifestasi kalah -> layar pindah ke adegan siluet animasi bertema
-   (laut/harta/es/kaca) dengan partikel bergerak, subtitle singkat muncul di
-   bawah sebagai pelengkap — bukan panel teks penuh layar kayak sebelumnya. */
-const CASTLE_MEMORY_THEMES = {
-  aurelion: {
-    bg1: '#122036', bg2: '#050a12', accent: '#4fc3ff', motif: '🌊', particle: 'bubble',
-    caption: 'Kesombongan Raja Vampir dimulai saat domain Laut Selatan jatuh ke tangannya. Ia berpikir dirinya penguasa sejati — dan jadi sombong ke teman seperjuangannya sendiri.'
-  },
-  goldraven: {
-    bg1: '#2b1a08', bg2: '#0f0904', accent: '#ffd63c', motif: '💰', particle: 'coin',
-    caption: 'Usai menguasai domain selatan, ia jadi sangat serakah — mengambil semua yang ada, menghancurkannya kalau tak puas, selalu mencari yang terbaik.'
-  },
-  velaria: {
-    bg1: '#241733', bg2: '#0a0612', accent: '#ff6fae', motif: '❄️', particle: 'snow',
-    caption: 'Obsesinya untuk menguasai domain utara juga mulai tumbuh — matanya kini tertuju pada puncak-puncak es yang belum pernah ia jamah.'
-  },
-  mirrora: {
-    bg1: '#151a2b', bg2: '#05070d', accent: '#b8a6ff', motif: '🪞', particle: 'shard',
-    caption: 'Iri hatinya tumbuh terhadap sang adik, yang mendapat kekuasaan begitu besar di domain barat dan timur — sesuatu yang tak pernah ia miliki.'
-  },
-  teaser: {
-    bg1: '#151022', bg2: '#050308', accent: '#b8a6ff', motif: '🌑', particle: 'shard',
-    caption: 'GORGATH (Kerakusan), RAVAGOR (Amarah), dan SOMNARA masih bersembunyi jauh di Alam Bawah Sadar ini.\nCOMING SOON — CHAPTER 2 LANJUTAN'
-  }
-};
-function castleShowMemoryCutscene(sceneKey, onDone) {
-  document.getElementById('castleControls').classList.remove('visible');
-  document.getElementById('questHud').style.display = 'none';
-  bossBarWrap.style.display = 'none';
-  castle.memoryCutscene = { sceneKey, phase: 'fadein', t: 0, onDone };
-}
-function castleUpdateMemoryCutscene() {
-  frame++;
-  const m = castle.memoryCutscene;
-  m.t++;
-  if (m.phase === 'fadein' && m.t > 35) { m.phase = 'scene'; m.t = 0; }
-  else if (m.phase === 'scene' && m.t > 260) { m.phase = 'fadeout'; m.t = 0; }
-  else if (m.phase === 'fadeout' && m.t > 35) {
-    const cb = m.onDone;
-    castle.memoryCutscene = null;
-    if (cb) cb();
-  }
-}
-function castleWrapText(text, x, y, maxWidth, lineHeight) {
-  const paragraphs = text.split('\n');
-  const lines = [];
-  paragraphs.forEach(para => {
-    const words = para.split(' ');
-    let line = '';
-    words.forEach((word, i) => {
-      const test = line + word + ' ';
-      if (ctx.measureText(test).width > maxWidth && i > 0) { lines.push(line.trim()); line = word + ' '; }
-      else line = test;
-    });
-    lines.push(line.trim());
-  });
-  const startY = y - (lines.length - 1) * lineHeight / 2;
-  lines.forEach((l, i) => ctx.fillText(l, x, startY + i * lineHeight));
-}
-function castleDrawMemoryScene(sceneKey, t) {
-  const th = CASTLE_MEMORY_THEMES[sceneKey];
-  const g = ctx.createLinearGradient(0, 0, 0, VH);
-  g.addColorStop(0, th.bg1); g.addColorStop(1, th.bg2);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
-
-  // motif besar berdenyut melayang
-  ctx.save();
-  ctx.globalAlpha = 0.85;
-  ctx.font = `${52 + Math.sin(t * 0.03) * 4}px sans-serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.shadowColor = th.accent; ctx.shadowBlur = 24;
-  ctx.fillText(th.motif, VW / 2, VH * 0.3 + Math.sin(t * 0.02) * 6);
-  ctx.restore();
-
-  // siluet Raja Vampir membesar/menyala di tengah
-  ctx.save();
-  const growP = Math.min(1, t / 140);
-  const kingH = 46 + growP * 28;
-  ctx.fillStyle = '#050308';
-  roundRectPath(ctx, VW * 0.5 - 9, GROUND_Y - kingH, 18, kingH, 4);
-  ctx.fill();
-  ctx.beginPath(); ctx.arc(VW * 0.5, GROUND_Y - kingH - 9, 8, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = th.accent; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.7;
-  ctx.beginPath(); ctx.arc(VW * 0.5, GROUND_Y - kingH - 9, 10 + growP * 3, 0, Math.PI * 2); ctx.stroke();
-  ctx.restore();
-
-  // sosok-sosok lain menjauh (menggambarkan teman/keluarga yang ditinggalkan)
-  ctx.save();
-  ctx.fillStyle = '#050308';
-  ctx.globalAlpha = Math.max(0.15, 1 - t / 220);
-  const walk = Math.min(1, t / 220) * VW * 0.3;
-  [-1, 1].forEach(dir => {
-    const x = VW * 0.5 + dir * (40 + walk);
-    ctx.beginPath(); ctx.ellipse(x, GROUND_Y - 16, 7, 16, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(x, GROUND_Y - 34, 6, 0, Math.PI * 2); ctx.fill();
-  });
-  ctx.restore();
-
-  // partikel motif bertema
-  for (let i = 0; i < 16; i++) {
-    const seed = i * 53;
-    const x = (seed + t * 0.6) % VW;
-    const y = GROUND_Y - ((t * 0.8 + seed) % (GROUND_Y - 20));
-    ctx.save();
-    ctx.globalAlpha = 0.35;
-    if (th.particle === 'bubble') { ctx.strokeStyle = th.accent; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.stroke(); }
-    else if (th.particle === 'coin') { ctx.fillStyle = th.accent; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill(); }
-    else if (th.particle === 'snow') { ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill(); }
-    else { ctx.translate(x, y); ctx.rotate(i); ctx.fillStyle = th.accent; ctx.beginPath(); ctx.moveTo(-3, 0); ctx.lineTo(0, -4); ctx.lineTo(3, 0); ctx.lineTo(0, 4); ctx.closePath(); ctx.fill(); }
-    ctx.restore();
-  }
-}
-function castleDrawMemoryCutscene() {
-  const m = castle.memoryCutscene;
-  const th = CASTLE_MEMORY_THEMES[m.sceneKey];
-  castleDrawMemoryScene(m.sceneKey, frame);
-  let overlayAlpha = 0;
-  if (m.phase === 'fadein') overlayAlpha = 1 - m.t / 35;
-  else if (m.phase === 'fadeout') overlayAlpha = m.t / 35;
-  if (overlayAlpha > 0) {
-    ctx.save(); ctx.globalAlpha = overlayAlpha; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, VW, VH); ctx.restore();
-  }
-  const capAlpha = m.phase === 'scene' ? Math.min(1, m.t / 30) : (m.phase === 'fadeout' ? Math.max(0, 1 - m.t / 35) : 0);
-  if (capAlpha > 0) {
-    ctx.save();
-    ctx.globalAlpha = capAlpha;
-    ctx.fillStyle = 'rgba(5,3,8,0.55)';
-    roundRectPath(ctx, VW * 0.06, VH * 0.76, VW * 0.88, VH * 0.19, 10);
-    ctx.fill();
-    ctx.fillStyle = '#e8e2f0';
-    ctx.font = "11.5px 'Baloo 2', sans-serif";
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    castleWrapText(th.caption, VW / 2, VH * 0.855, VW * 0.78, 15);
-    ctx.restore();
-  }
-  if (m.phase === 'scene' && m.t > 60) {
-    ctx.save();
-    ctx.globalAlpha = 0.5 + Math.sin(frame * 0.08) * 0.25;
-    ctx.fillStyle = '#fff'; ctx.font = "10px 'Baloo 2', sans-serif"; ctx.textAlign = 'center';
-    ctx.fillText('(ketuk buat lanjut)', VW / 2, VH * 0.97);
-    ctx.restore();
-  }
-}
-function castleFinishAurelion() {
-  castle.boss = null;
-  castle.bossActive = false;
-  bossBarWrap.style.display = 'none';
-  castle.ruleEffect = null;
-  AudioMgr.sfx('unlock');
-  castleShowMemoryCutscene('aurelion', () => { castleStartGoldravenFight(); });
-}
-function castleFinishGoldraven() {
-  castle.boss = null;
-  castle.bossActive = false;
-  bossBarWrap.style.display = 'none';
-  castle.projectiles = [];
-  AudioMgr.sfx('unlock');
-  castleShowMemoryCutscene('goldraven', () => { castleStartVelariaFight(); });
-}
-function castleFinishVelaria() {
-  castle.boss = null;
-  castle.bossActive = false;
-  bossBarWrap.style.display = 'none';
-  castle.illusion = null;
-  castle.projectiles = [];
-  AudioMgr.sfx('unlock');
-  castleShowMemoryCutscene('velaria', () => { castleStartMirroraFight(); });
-}
-function castleFinishMirrora() {
-  castle.boss = null;
-  castle.bossActive = false;
-  bossBarWrap.style.display = 'none';
-  castle.ruleEffect = null;
-  castle.projectiles = [];
-  AudioMgr.sfx('unlock');
-  castleShowMemoryCutscene('mirrora', () => {
-    castleShowMemoryCutscene('teaser', () => { castleEndGame(true); });
-  });
-}
-/* ===================== VELARIA: DIMENSI ILUSI =====================
-   Kena portal VELARIA -> ditarik ke dimensi ilusi berisi godaan (kekuatan,
-   kemenangan, dsb) yang harus DIHINDARI (bukan diserang) selama beberapa
-   detik. Kesentuh = kena damage besar. Berhasil bertahan -> balik ke arena
-   persis di sebelah VELARIA dengan jendela "lengah" buat serangan balik. */
-function castleStartIllusion() {
-  const icons = ['💪', '👑', '✨', '⚔️', '🔥'];
-  const orbs = [];
-  for (let i = 0; i < 3; i++) {
-    orbs.push({
-      x: 40 + Math.random() * (VW - 80), y: 60 + Math.random() * (GROUND_Y - 120),
-      ang: Math.random() * Math.PI * 2, spd: 0.6 + Math.random() * 0.4,
-      icon: icons[Math.floor(Math.random() * icons.length)], t: 0, cd: 0
-    });
-  }
-  castle.illusion = { t: 0, duration: 300, orbs };
-  castleToast('😵 Tertarik ke dimensi ilusi VELARIA! Jangan sampai kesentuh godaannya!');
-  AudioMgr.sfx('unlock');
-}
-function castleUpdateIllusion() {
-  frame++;
-  const il = castle.illusion;
-  il.t++;
-  dino.x += castle.analogX * 3.4;
-  dino.x = Math.max(8, Math.min(VW - dino.w - 8, dino.x));
-  if (dino.jumping) {
-    dino.vy += GRAVITY;
-    dino.y += dino.vy;
-    if (dino.y >= GROUND_Y - dino.h) { dino.y = GROUND_Y - dino.h; dino.jumping = false; dino.vy = 0; }
-  }
-  il.orbs.forEach(o => {
-    o.t++;
-    if (o.cd > 0) o.cd--;
-    o.x += Math.cos(o.ang) * o.spd;
-    o.y += Math.sin(o.ang) * o.spd * 0.6;
-    if (o.x < 20 || o.x > VW - 20) o.ang = Math.PI - o.ang;
-    if (o.y < 40 || o.y > GROUND_Y - 20) o.ang = -o.ang;
-    if (o.t % 90 === 0) {
-      const dx = (dino.x + dino.w / 2) - o.x, dy = (dino.y + dino.h / 2) - o.y;
-      o.ang = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.6;
-    }
-  });
-  const dcx = dino.x + dino.w / 2, dcy = dino.y + dino.h / 2;
-  il.orbs.forEach(o => {
-    if (o.cd > 0) return;
-    if (Math.hypot(o.x - dcx, o.y - dcy) < 22) {
-      castleTakeDamage(30);
-      o.cd = 60;
-      castleToast('😈 Kamu tergoda! Cepat menjauh!');
-    }
-  });
-  if (il.t > il.duration) {
-    castle.illusion = null;
-    if (castle.boss) {
-      dino.x = Math.max(8, Math.min(VW - dino.w - 8, castle.boss.x + (castle.boss.x < VW / 2 ? 50 : -50)));
-      castle.boss.vulnT = 90;
-    }
-    castleToast('✨ Kamu berhasil menolak! Serang VELARIA sekarang selagi lengah!');
-    AudioMgr.sfx('unlock');
-  }
-  castleUpdateHpBar();
-}
-function castleDrawIllusion() {
-  const il = castle.illusion;
-  const g = ctx.createRadialGradient(VW / 2, VH * 0.4, 10, VW / 2, VH * 0.4, Math.max(VW, VH) * 0.8);
-  g.addColorStop(0, '#3a1f52'); g.addColorStop(1, '#0a0512');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
-  il.orbs.forEach(o => {
-    ctx.save();
-    ctx.globalAlpha = o.cd > 0 ? 0.3 : 0.9;
-    ctx.translate(o.x, o.y);
-    ctx.shadowColor = '#ff6fae'; ctx.shadowBlur = 16;
-    ctx.font = '26px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(o.icon, 0, 0);
-    ctx.restore();
-  });
-  const s = getSkin(data.selectedSkin);
-  drawDinoShape(ctx, dino.x, dino.y, dino.w, dino.h, s, dino.jumping, frame, 1);
-  ctx.save();
-  ctx.globalAlpha = 0.85;
-  ctx.fillStyle = '#fff'; ctx.font = "12px 'Baloo 2', sans-serif"; ctx.textAlign = 'center';
-  ctx.fillText('JANGAN SAMPAI KESENTUH GODAANNYA!', VW / 2, 34);
-  ctx.restore();
-  const p = Math.max(0, 1 - il.t / il.duration);
-  ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.fillRect(VW * 0.2, 48, VW * 0.6, 6);
-  ctx.fillStyle = '#ff6fae'; ctx.fillRect(VW * 0.2, 48, VW * 0.6 * p, 6);
-}
-function castleUpdateVictoryCutscene() {
-  frame++;
-  const vc = castle.victoryCutscene;
-  vc.t++;
-  if (vc.phase === 'grow' && vc.t > 55) { vc.phase = 'suck'; vc.t = 0; }
-  else if (vc.phase === 'suck' && vc.t > 50) { vc.phase = 'travel'; vc.t = 0; AudioMgr.sfx('unlock'); }
-  else if (vc.phase === 'travel' && vc.t > 100) { vc.phase = 'land'; vc.t = 0; }
-  else if (vc.phase === 'land' && vc.t > 65) { vc.phase = 'tomb'; vc.t = 0; }
-  else if (vc.phase === 'tomb' && vc.t > 55) { vc.phase = 'text'; vc.t = 0; }
-  else if (vc.phase === 'text' && vc.t > 320) { castleFinishVictoryCutscene(); }
-}
-function castleEaseOutCubic(x) { return 1 - Math.pow(1 - x, 3); }
-function castleDrawBigPortal(cx, cy, r, t) {
-  ctx.save();
-  ctx.fillStyle = 'rgba(10,6,16,0.4)';
-  ctx.fillRect(0, 0, VW, VH);
-  ctx.translate(cx, cy);
-  const glow = ctx.createRadialGradient(0, 0, Math.max(4, r * 0.2), 0, 0, Math.max(6, r));
-  glow.addColorStop(0, 'rgba(184,166,255,0.65)');
-  glow.addColorStop(0.7, 'rgba(120,80,220,0.35)');
-  glow.addColorStop(1, 'rgba(120,80,220,0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath(); ctx.arc(0, 0, Math.max(1, r), 0, Math.PI * 2); ctx.fill();
-  for (let i = 0; i < 5; i++) {
-    const rr = r * (0.9 - i * 0.15);
-    if (rr <= 0) continue;
-    const ang = t * (i % 2 === 0 ? 0.05 : -0.06) + i;
-    ctx.strokeStyle = `rgba(${210 - i * 15},${190 - i * 10},255,${Math.max(0, 0.5 - i * 0.07)})`;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rr, rr * 0.94, ang, 0, Math.PI * 1.5);
-    ctx.stroke();
-  }
-  const core = ctx.createRadialGradient(0, 0, 0, 0, 0, Math.max(4, r * 0.35));
-  core.addColorStop(0, '#0d0716');
-  core.addColorStop(1, 'rgba(30,18,50,0.85)');
-  ctx.fillStyle = core;
-  ctx.beginPath(); ctx.arc(0, 0, Math.max(1, r * 0.35), 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-}
-function castleDrawVortexTunnel(t) {
-  const cx = VW / 2, cy = VH / 2;
-  const maxR = Math.max(VW, VH) * 0.75;
-  const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, maxR);
-  g.addColorStop(0, '#2a1a44'); g.addColorStop(0.5, '#160e28'); g.addColorStop(1, '#050308');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
-  ctx.save();
-  ctx.translate(cx, cy);
-  for (let i = 0; i < 10; i++) {
-    const rr = (t * 3 + i * 38) % maxR;
-    const alpha = 0.5 * (1 - rr / maxR);
-    if (alpha <= 0) continue;
-    ctx.strokeStyle = `rgba(184,166,255,${alpha})`;
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * 0.9, t * 0.02, 0, Math.PI * 2); ctx.stroke();
-  }
-  for (let i = 0; i < 24; i++) {
-    const ang = (i / 24) * Math.PI * 2 + t * 0.03;
-    const dist = (t * 6 + i * 29) % (maxR * 0.9);
-    const x = Math.cos(ang) * dist, y = Math.sin(ang) * dist * 0.9;
-    const alpha = Math.max(0, 1 - dist / (maxR * 0.9));
-    ctx.fillStyle = `rgba(230,220,255,${alpha * 0.8})`;
-    ctx.beginPath(); ctx.arc(x, y, 2 + alpha * 2, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.restore();
-}
-function castleDrawSubconsciousBackground() {
-  // ===== ALAM BAWAH SADAR SANG RAJA VAMPIR =====
-  // Latar Chapter 2: bukan makam, tapi ruang batin gelap penuh kabut jiwa &
-  // pecahan ingatan. Ada siluet takhta jauh dijaga 6 bayangan (foreshadow
-  // 6 manifestasi dosa lain) dan mahkota emas retak melayang (foreshadow AURELION).
-  const g = ctx.createRadialGradient(VW * 0.5, VH * 0.35, 10, VW * 0.5, VH * 0.35, Math.max(VW, VH) * 0.9);
-  g.addColorStop(0, '#241733'); g.addColorStop(0.55, '#150c20'); g.addColorStop(1, '#050308');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, VW, VH);
-
-  // kabut jiwa berlapis, melayang pelan
-  for (let layer = 0; layer < 3; layer++) {
-    ctx.save();
-    ctx.globalAlpha = 0.10 + layer * 0.05;
-    ctx.fillStyle = layer % 2 === 0 ? '#7a5bd6' : '#3f2a63';
-    const wob = Math.sin(frame * 0.006 + layer) * 20;
-    ctx.beginPath();
-    ctx.ellipse(VW * 0.5 + wob, GROUND_Y * (0.4 + layer * 0.16), VW * 0.75, 46 + layer * 10, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  // siluet takhta jauh + 6 bayangan penjaga (foreshadow 6 manifestasi dosa lain)
-  ctx.save();
-  ctx.globalAlpha = 0.5;
-  ctx.fillStyle = '#0a0610';
-  roundRectPath(ctx, VW * 0.44, GROUND_Y - 58, VW * 0.12, 50, 4);
-  ctx.fill();
-  ctx.fillRect(VW * 0.47, GROUND_Y - 78, VW * 0.06, 24);
-  for (let i = 0; i < 6; i++) {
-    const gx = VW * (0.14 + i * 0.145);
-    ctx.globalAlpha = 0.32;
-    ctx.fillStyle = '#0a0610';
-    ctx.beginPath();
-    ctx.ellipse(gx, GROUND_Y - 20, 9, 20, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath(); ctx.arc(gx, GROUND_Y - 40, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.7 + Math.sin(frame * 0.05 + i) * 0.2;
-    ctx.fillStyle = '#ff3b4d';
-    ctx.beginPath(); ctx.arc(gx - 2, GROUND_Y - 41, 1, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(gx + 2, GROUND_Y - 41, 1, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.restore();
-
-  // mahkota emas retak melayang (foreshadow AURELION - Kesombongan)
-  ctx.save();
-  const cx = VW * 0.5, cy = VH * 0.15 + Math.sin(frame * 0.02) * 6;
-  ctx.globalAlpha = 0.55;
-  ctx.translate(cx, cy);
-  ctx.rotate(Math.sin(frame * 0.008) * 0.06);
-  ctx.strokeStyle = '#e8c15c'; ctx.lineWidth = 2.5;
-  ctx.beginPath();
-  ctx.moveTo(-20, 8); ctx.lineTo(-20, -4); ctx.lineTo(-12, -14); ctx.lineTo(-4, -2);
-  ctx.lineTo(0, -16); ctx.lineTo(4, -2); ctx.lineTo(12, -14); ctx.lineTo(20, -4); ctx.lineTo(20, 8);
-  ctx.stroke();
-  ctx.strokeStyle = 'rgba(20,10,10,0.7)'; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(-6, -6); ctx.lineTo(2, 6); ctx.stroke(); // retakan
-  ctx.restore();
-
-  // lantai bawah sadar: pecahan kaca ingatan melayang, bukan lantai batu padat
-  ctx.fillStyle = 'rgba(10,6,16,0.55)';
-  ctx.fillRect(0, GROUND_Y, VW, VH - GROUND_Y);
-  for (let i = 0; i < 10; i++) {
-    const x = (i * 61 + frame * 0.2) % VW;
-    const y = GROUND_Y + 10 + (i * 13) % (VH - GROUND_Y - 10);
-    ctx.save();
-    ctx.globalAlpha = 0.2;
-    ctx.translate(x, y);
-    ctx.rotate(i);
-    ctx.fillStyle = '#b8a6ff';
-    ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(0, -6); ctx.lineTo(5, 0); ctx.lineTo(0, 6); ctx.closePath(); ctx.fill();
-    ctx.restore();
-  }
-
-  // partikel jiwa melayang naik
-  ctx.fillStyle = 'rgba(200,190,255,0.25)';
-  for (let i = 0; i < 16; i++) {
-    const x = (i * 47 + Math.sin(frame * 0.02 + i) * 12) % VW;
-    const y = GROUND_Y - ((frame * 0.6 + i * 40) % (GROUND_Y - 10));
-    ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill();
-  }
-}
-function castleDrawLandingDust(x, y, p) {
-  ctx.save();
-  ctx.globalAlpha = Math.max(0, 1 - p);
-  ctx.fillStyle = 'rgba(200,190,180,0.5)';
-  for (let i = 0; i < 8; i++) {
-    const dist = p * 30;
-    const dx = (i % 2 === 0 ? 1 : -1) * (dist + i * 2);
-    ctx.beginPath(); ctx.arc(x + dx, y - p * 8, 3 + p * 4, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.restore();
-}
-function castleDrawComingSoonText(t) {
-  const p = Math.min(1, t / 40);
-  const ease = castleEaseOutCubic(p);
-  ctx.save();
-  ctx.globalAlpha = ease;
-  ctx.translate(VW / 2, VH * 0.26);
-  ctx.scale(0.7 + ease * 0.3, 0.7 + ease * 0.3);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.shadowColor = 'rgba(184,166,255,0.9)'; ctx.shadowBlur = 18;
-  ctx.fillStyle = '#e8d9ff';
-  ctx.font = "bold 15px 'Baloo 2', sans-serif";
-  ctx.fillText('👑 KASTIL TAMAT 👑', 0, -40);
-  ctx.font = "11px 'Baloo 2', sans-serif";
-  ctx.fillStyle = 'rgba(184,166,255,0.85)';
-  ctx.fillText('ALAM BAWAH SADAR SANG RAJA VAMPIR', 0, -20);
-  ctx.font = "bold 20px 'Baloo 2', sans-serif";
-  ctx.fillStyle = '#fff3b0';
-  ctx.fillText('CHAPTER 2 DIMULAI', 0, 8);
-  ctx.font = "bold 15px 'Baloo 2', sans-serif";
-  ctx.fillStyle = '#ff8a8a';
-  ctx.fillText('BAB 1: KESOMBONGAN', 0, 30);
-  ctx.restore();
-  if (t > 70) {
-    ctx.save();
-    ctx.globalAlpha = 0.55 + Math.sin(t * 0.08) * 0.25;
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#fff';
-    ctx.font = "11px 'Baloo 2', sans-serif";
-    ctx.fillText('(ketuk layar buat lanjut)', VW / 2, VH * 0.26 + 60);
-    ctx.restore();
-  }
-}
-function castleDrawVictoryCutscene() {
-  const vc = castle.victoryCutscene;
-  const s = getSkin(data.selectedSkin);
-  if (vc.phase === 'grow') {
-    castleDrawBackground();
-    const p = Math.min(1, vc.t / 55);
-    const r = castleEaseOutCubic(p) * Math.max(VW, VH) * 0.75;
-    castleDrawBigPortal(vc.portalX, vc.portalY, r, vc.t);
-    drawDinoShape(ctx, dino.x, dino.y, dino.w, dino.h, s, false, frame, 1);
-  } else if (vc.phase === 'suck') {
-    castleDrawBackground();
-    castleDrawBigPortal(vc.portalX, vc.portalY, Math.max(VW, VH) * 0.75, vc.t);
-    const p = Math.min(1, vc.t / 50);
-    const ease = castleEaseOutCubic(p);
-    const dx = vc.dinoStartX + (vc.portalX - dino.w / 2 - vc.dinoStartX) * ease;
-    const dy = vc.dinoStartY + (vc.portalY - dino.h / 2 - vc.dinoStartY) * ease;
-    const scale = 1 - ease * 0.85;
-    const alpha = Math.max(0, 1 - ease * 0.9);
-    ctx.save();
-    ctx.translate(dx + dino.w / 2, dy + dino.h / 2);
-    ctx.scale(scale, scale);
-    drawDinoShape(ctx, -dino.w / 2, -dino.h / 2, dino.w, dino.h, s, false, frame, alpha);
-    ctx.restore();
-  } else if (vc.phase === 'travel') {
-    castleDrawVortexTunnel(vc.t);
-  } else if (vc.phase === 'land') {
-    castleDrawSubconsciousBackground();
-    const p = Math.min(1, vc.t / 65);
-    if (p < 0.4) {
-      ctx.save(); ctx.globalAlpha = 1 - p / 0.4; castleDrawVortexTunnel(999); ctx.restore();
-    }
-    const fallP = Math.min(1, vc.t / 50);
-    const ease = castleEaseOutCubic(fallP);
-    const dy = -60 + ease * 60;
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, vc.t / 15);
-    drawDinoShape(ctx, VW / 2 - dino.w / 2, GROUND_Y - dino.h + dy, dino.w, dino.h, s, false, frame, 1);
-    ctx.restore();
-    if (fallP > 0.85) castleDrawLandingDust(VW / 2, GROUND_Y, (fallP - 0.85) / 0.15);
-  } else if (vc.phase === 'tomb') {
-    castleDrawSubconsciousBackground();
-    drawDinoShape(ctx, VW / 2 - dino.w / 2, GROUND_Y - dino.h, dino.w, dino.h, s, false, frame, 1);
-  } else if (vc.phase === 'text') {
-    castleDrawSubconsciousBackground();
-    drawDinoShape(ctx, VW / 2 - dino.w / 2, GROUND_Y - dino.h, dino.w, dino.h, s, false, frame, 1);
-    castleDrawComingSoonText(vc.t);
-  }
+  castleToast('👑 RAJA VAMPIR TUMBANG! KASTIL TAMAT!');
+  setTimeout(() => { castleEndGame(true); }, 1400);
 }
 function castleToast(text) {
   skillToast.textContent = text;
@@ -1623,11 +1033,6 @@ function castleUpdateProgress() {
   const f = castleFloorDef();
   const label = document.getElementById('castleProgressLabel');
   const fill = document.getElementById('castleProgressFill');
-  if (castle.floorCleared && castle.portal) {
-    label.textContent = '🌀 Masuk portal buat lanjut!';
-    fill.style.width = '100%';
-    return;
-  }
   if (f.isBossFloor) {
     label.textContent = castle.boss ? `Kalahkan ${CASTLE_ENEMY_DEFS[f.bossType].name}!` : '';
     fill.style.width = castle.boss ? `${100 - (castle.boss.hp / castle.boss.maxHp * 100)}%` : '0%';
@@ -1657,7 +1062,7 @@ function castleUpdateSkillButtons() {
   }
 }
 function castleAttack(slot) {
-  if (state !== 'playing' || mode !== 'quest' || paused || castle.victoryCutscene || castle.memoryCutscene || castle.illusion) return;
+  if (state !== 'playing' || mode !== 'quest' || paused) return;
   if (!castle.skillsUnlocked[slot]) return;
   if (castle.attackCooldowns[slot] > 0) return;
   const sk = CASTLE_SKILLS[slot];
@@ -1669,7 +1074,7 @@ function castleAttack(slot) {
   targets.forEach(e => {
     const ecx = e.x + e.w / 2;
     if (Math.abs(ecx - cx) <= sk.range) {
-      e.hp -= e.vulnT > 0 ? sk.dmg * 1.5 : sk.dmg;
+      e.hp -= sk.dmg;
       e.hitFlash = 8;
       hitAny = true;
     }
@@ -1688,64 +1093,32 @@ function castleEndGame(victory) {
   state = 'gameover';
   document.getElementById('goStatsNormal').style.display = 'none';
   document.getElementById('goStatsQuest').style.display = '';
-  const aurelionDone = victory && castle.floor === 5;
-  const goldravenDone = victory && castle.floor === 6;
-  const velariaDone = victory && castle.floor === 7;
-  const mirroraDone = victory && castle.floor === 8;
-  let title = '👑 KASTIL TAMAT!', age = '4 (Tamat)', mapTxt = 'Raja Vampir Tumbang!';
-  if (mirroraDone) { title = '🪞 MIRRORA TUMBANG!'; age = '8 (Alam Bawah Sadar)'; mapTxt = 'Manifestasi ke-4 Tumbang!'; }
-  else if (velariaDone) { title = '🌙 VELARIA TUMBANG!'; age = '7 (Alam Bawah Sadar)'; mapTxt = 'Manifestasi ke-3 Tumbang!'; }
-  else if (goldravenDone) { title = '💰 GOLDRAVEN TUMBANG!'; age = '6 (Alam Bawah Sadar)'; mapTxt = 'Manifestasi ke-2 Tumbang!'; }
-  else if (aurelionDone) { title = '👑 AURELION TUMBANG!'; age = '5 (Alam Bawah Sadar)'; mapTxt = 'Manifestasi ke-1 Tumbang!'; }
-  document.getElementById('goTitle').textContent = victory ? title : '💀 TERTUMBANG DI KASTIL';
+  document.getElementById('goTitle').textContent = victory ? '👑 KASTIL TAMAT!' : '💀 TERTUMBANG DI KASTIL';
   document.getElementById('goTitle').classList.toggle('new-best', victory);
-  document.getElementById('goAge').textContent = victory ? age : String(castle.floor);
-  document.getElementById('goMap').textContent = victory ? mapTxt : (CASTLE_FLOORS[castle.floor] ? CASTLE_FLOORS[castle.floor].name : '-');
+  document.getElementById('goAge').textContent = victory ? '4 (Tamat)' : String(castle.floor);
+  document.getElementById('goMap').textContent = victory ? 'Raja Vampir Tumbang!' : (CASTLE_FLOORS[castle.floor] ? CASTLE_FLOORS[castle.floor].name : '-');
   showScreen('gameover');
 }
 function castleUpdate() {
-  if (castle.victoryCutscene) { castleUpdateVictoryCutscene(); return; }
-  if (castle.memoryCutscene) { castleUpdateMemoryCutscene(); return; }
-  if (castle.illusion) { castleUpdateIllusion(); return; }
   frame++;
   const f = castleFloorDef();
   if (castle.invincible > 0) castle.invincible--;
   if (castle.shakeT > 0) castle.shakeT--;
   for (let i = 0; i < 3; i++) if (castle.attackCooldowns[i] > 0) castle.attackCooldowns[i]--;
 
-  // gerak dino via joystick analog — AURELION bisa "membalik" arah kontrol
-  const effX = castle.ruleEffect === 'invert' ? -castle.analogX : castle.analogX;
-  dino.x += effX * 3.4;
+  // gerak dino via joystick analog
+  dino.x += castle.analogX * 3.4;
   dino.x = Math.max(8, Math.min(VW - dino.w - 8, dino.x));
-  if (effX > 0.05) castle.facing = 1;
-  else if (effX < -0.05) castle.facing = -1;
+  if (castle.analogX > 0.05) castle.facing = 1;
+  else if (castle.analogX < -0.05) castle.facing = -1;
   if (dino.jumping) {
-    dino.vy += (castle.ruleEffect === 'heavygrav' ? GRAVITY * 2.2 : GRAVITY);
+    dino.vy += GRAVITY;
     dino.y += dino.vy;
     if (dino.y >= GROUND_Y - dino.h) { dino.y = GROUND_Y - dino.h; dino.jumping = false; dino.vy = 0; }
   }
 
-  // AURELION: tiap ~5 detik acak 1 "aturan permainan" baru selama boss dia masih hidup
-  if (castle.boss && castle.boss.type === 'aurelion') {
-    if (castle.ruleEffect) {
-      castle.ruleEffectT--;
-      if (castle.ruleEffectT <= 0) castle.ruleEffect = null;
-    } else {
-      castle.ruleTimer++;
-      if (castle.ruleTimer > 300) {
-        castle.ruleTimer = 0;
-        const keys = Object.keys(AURELION_RULES);
-        const pick = keys[Math.floor(Math.random() * keys.length)];
-        castle.ruleEffect = pick;
-        castle.ruleEffectT = 170;
-        castleToast(`👑 AURELION mengubah aturan: ${AURELION_RULES[pick].label}`);
-        AudioMgr.sfx('unlock');
-      }
-    }
-  }
-
-  // spawn musuh biasa (non-boss floor, atau floor 4 sebelum raja muncul) — berhenti kalau lantai sudah clear/portal aktif
-  if (!f.isBossFloor && !castle.bossActive && !castle.floorCleared) {
+  // spawn musuh biasa (non-boss floor, atau floor 4 sebelum raja muncul)
+  if (!f.isBossFloor && !castle.bossActive) {
     castle.spawnTimer++;
     if (castle.spawnTimer > castle.nextSpawnGap) {
       castleSpawnEnemy();
@@ -1753,14 +1126,12 @@ function castleUpdate() {
       castle.nextSpawnGap = f.gap[0] + Math.random() * (f.gap[1] - f.gap[0]);
     }
   }
-  // spawn mantra (juga berhenti kalau lantai sudah clear)
-  if (!castle.floorCleared) {
-    castle.mantraTimer++;
-    if (castle.mantraTimer > castle.nextMantraGap) {
-      castleSpawnMantra();
-      castle.mantraTimer = 0;
-      castle.nextMantraGap = 300 + Math.random() * 220;
-    }
+  // spawn mantra
+  castle.mantraTimer++;
+  if (castle.mantraTimer > castle.nextMantraGap) {
+    castleSpawnMantra();
+    castle.mantraTimer = 0;
+    castle.nextMantraGap = 300 + Math.random() * 220;
   }
 
   // update musuh biasa
@@ -1786,10 +1157,8 @@ function castleUpdate() {
   // update boss
   if (castle.boss) {
     const b = castle.boss;
-    const def = CASTLE_ENEMY_DEFS[b.type];
     if (b.hitFlash > 0) b.hitFlash--;
     if (b.atkCooldown > 0) b.atkCooldown--;
-    if (b.vulnT > 0) b.vulnT--;
     const bcx = b.x + b.w / 2;
     if (Math.abs(bcx - cx) > 30) {
       b.x += bcx < cx ? b.speed : -b.speed;
@@ -1798,137 +1167,16 @@ function castleUpdate() {
       castleTakeDamage(b.dmg);
       b.atkCooldown = 85;
     }
-    // GOLDRAVEN: menyerap "harta" di sekitar arena, lalu melontarkannya balik
-    // sebagai proyektil ke dino — musuh jarak jauh pertama di Kastil.
-    if (b.type === 'goldraven') {
-      if (b.absorbT > 0) b.absorbT--;
-      b.rangedCooldown--;
-      if (b.rangedCooldown <= 0) {
-        b.rangedCooldown = 210;
-        b.absorbT = 26;
-        const bx = b.x + b.w / 2, by = b.y + b.h * 0.32;
-        const tx = dino.x + dino.w / 2, ty = dino.y + dino.h / 2;
-        const dx = tx - bx, dy = ty - by;
-        const dist = Math.max(1, Math.hypot(dx, dy));
-        const spd = 3.1;
-        castle.projectiles.push({ x: bx, y: by, vx: dx / dist * spd, vy: dy / dist * spd, dmg: 14, life: 160, kind: 'coin' });
-        castleToast('💰 GOLDRAVEN melontarkan hartanya!');
-        AudioMgr.sfx('coin');
-      }
-    }
-    // VELARIA: menembakkan portal — kena portalnya = ketarik ke dimensi ilusi
-    if (b.type === 'velaria') {
-      b.rangedCooldown--;
-      if (b.rangedCooldown <= 0 && !castle.illusion) {
-        b.rangedCooldown = 280;
-        const bx = b.x + b.w / 2, by = b.y + b.h * 0.32;
-        const tx = dino.x + dino.w / 2, ty = dino.y + dino.h / 2;
-        const dx = tx - bx, dy = ty - by;
-        const dist = Math.max(1, Math.hypot(dx, dy));
-        const spd = 2.5;
-        castle.projectiles.push({ x: bx, y: by, vx: dx / dist * spd, vy: dy / dist * spd, dmg: 0, life: 220, kind: 'portal' });
-        castleToast('🌙 VELARIA menembakkan portal ilusi — hindari!');
-        AudioMgr.sfx('unlock');
-      }
-    }
-    // MIRRORA: meniru kekuatan manifestasi sebelumnya (atau dino sendiri) bergantian
-    if (b.type === 'mirrora') {
-      if (b.mimicT > 0) {
-        b.mimicT--;
-        if (b.mimicT <= 0) {
-          b.mimicMode = null;
-          b.speed = def.speed;
-          castle.ruleEffect = null;
-          castleToast('🪞 MIRRORA berhenti meniru.');
-        }
-      } else {
-        b.mimicCooldown--;
-        if (b.mimicCooldown <= 0) {
-          const modes = ['aurelion', 'goldraven', 'dino'];
-          const pick = modes[Math.floor(Math.random() * modes.length)];
-          b.mimicMode = pick; b.mimicT = 170; b.mimicCooldown = 280;
-          if (pick === 'aurelion') {
-            const keys = Object.keys(AURELION_RULES);
-            const rule = keys[Math.floor(Math.random() * keys.length)];
-            castle.ruleEffect = rule; castle.ruleEffectT = 150;
-            castleToast(`🪞 MIRRORA meniru AURELION: ${AURELION_RULES[rule].label}`);
-          } else if (pick === 'goldraven') {
-            const bx = b.x + b.w / 2, by = b.y + b.h * 0.32;
-            const tx = dino.x + dino.w / 2, ty = dino.y + dino.h / 2;
-            const dx = tx - bx, dy = ty - by;
-            const dist = Math.max(1, Math.hypot(dx, dy));
-            castle.projectiles.push({ x: bx, y: by, vx: dx / dist * 3, vy: dy / dist * 3, dmg: 14, life: 160, kind: 'coin' });
-            castleToast('🪞 MIRRORA meniru GOLDRAVEN: melontarkan harta!');
-          } else {
-            b.speed = def.speed * 2.3;
-            castleToast('🪞 MIRRORA meniru DINO: jadi cepat & ganas!');
-          }
-          AudioMgr.sfx('unlock');
-        }
-      }
-    }
     castleUpdateBossBar();
     if (b.hp <= 0) {
       AudioMgr.sfx('unlock');
-      castle.boss = null;
-      castle.bossActive = false;
-      bossBarWrap.style.display = 'none';
-      if (b.type === 'aurelion') {
-        castleFinishAurelion();
-        castleUpdateHpBar();
-        castleUpdateProgress();
-        return;
-      } else if (b.type === 'goldraven') {
-        castleFinishGoldraven();
-        castleUpdateHpBar();
-        castleUpdateProgress();
-        return;
-      } else if (b.type === 'velaria') {
-        castleFinishVelaria();
-        castleUpdateHpBar();
-        castleUpdateProgress();
-        return;
-      } else if (b.type === 'mirrora') {
-        castleFinishMirrora();
-        castleUpdateHpBar();
-        castleUpdateProgress();
-        return;
-      } else if (f.isBossFloor) {
-        castleSpawnPortal();
-      } else {
-        castleVictory();
-        // Stop di sini — kalau lanjut ke bawah, blok "trigger Raja Vampir di lantai 4"
-        // bakal langsung ngecek lagi di frame yang SAMA. Karena castle.score masih
-        // >= kingTarget (belum direset) dan castle.bossActive baru aja jadi false,
-        // kondisinya ke-anggap "belum ada raja" -> RAJA VAMPIR KE-SPAWN ULANG full HP,
-        // itu sebabnya HP bar-nya nongol lagi dan gak pernah hilang selama animasi.
-        castleUpdateHpBar();
-        castleUpdateProgress();
-        return;
-      }
+      if (f.isBossFloor) { castleAdvanceFloor(); }
+      else { castleVictory(); }
     }
   }
 
-  // update proyektil (koin GOLDRAVEN/MIRRORA = damage langsung, portal VELARIA = tarik ke ilusi)
-  if (castle.projectiles.length) {
-    const dcx = dino.x + dino.w / 2, dcy = dino.y + dino.h / 2;
-    for (let i = castle.projectiles.length - 1; i >= 0; i--) {
-      const p = castle.projectiles[i];
-      p.x += p.vx; p.y += p.vy; p.life--;
-      const dist = Math.hypot(p.x - dcx, p.y - dcy);
-      if (dist < 18) {
-        castle.projectiles.splice(i, 1);
-        if (p.kind === 'portal') { castleStartIllusion(); break; }
-        else { castleTakeDamage(p.dmg); }
-      } else if (p.life <= 0 || p.x < -50 || p.x > VW + 50 || p.y < -50 || p.y > VH + 50) {
-        castle.projectiles.splice(i, 1);
-      }
-    }
-  }
-
-
-  // trigger Raja Vampir di lantai 4 (dijaga: jangan spawn lagi kalau Kastil sudah tamat)
-  if (castle.floor === 4 && !castle.completed && !castle.bossActive && castle.score >= f.kingTarget) {
+  // trigger Raja Vampir di lantai 4
+  if (castle.floor === 4 && !castle.bossActive && castle.score >= f.kingTarget) {
     castle.enemies = [];
     castleSpawnBoss('vampireKing');
   }
@@ -1961,405 +1209,13 @@ function castleUpdate() {
     return true;
   });
 
-  // munculkan portal kalau skor target tercapai (bukan boss floor, bukan lagi lawan raja)
-  if (!f.isBossFloor && !castle.bossActive && !castle.floorCleared && castle.score >= f.target) {
-    castleSpawnPortal();
-  }
-
-  // cek dino masuk portal -> baru pindah lantai
-  if (castle.portal) {
-    castle.portal.t += 0.06;
-    const pdx = castle.portal.x - cx, pdy = (castle.portal.y - 30) - (dino.y + dino.h / 2);
-    if (Math.sqrt(pdx * pdx + pdy * pdy) < 30) {
-      AudioMgr.sfx('unlock');
-      castleAdvanceFloor();
-    }
+  // naik lantai kalau skor target tercapai (bukan boss floor, bukan lagi lawan raja)
+  if (!f.isBossFloor && !castle.bossActive && castle.score >= f.target) {
+    castleAdvanceFloor();
   }
 
   castleUpdateHpBar();
   castleUpdateProgress();
-}
-function castleDrawZombieBody(e, def, flash) {
-  const w = e.w, h = e.h;
-  const limp = Math.sin(e.walkFrame) * 0.12; // kepala/badan miring dikit tiap langkah, kesan pincang
-  // bayangan tanah
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.42, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
-
-  // lengan menjuntai ke depan (khas zombie)
-  ctx.strokeStyle = flash ? '#ffdddd' : def.dark;
-  ctx.lineWidth = Math.max(3, w * 0.13);
-  ctx.lineCap = 'round';
-  const armSwing = Math.sin(e.walkFrame * 0.7) * 3;
-  ctx.beginPath(); ctx.moveTo(-w * 0.36, -h * 0.62); ctx.lineTo(-w * 0.58, -h * 0.32 + armSwing); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(w * 0.36, -h * 0.62); ctx.lineTo(w * 0.58, -h * 0.3 - armSwing); ctx.stroke();
-
-  // torso robek compang-camping di bagian bawah
-  ctx.save();
-  ctx.rotate(limp * 0.3);
-  ctx.fillStyle = flash ? '#ffdddd' : def.color;
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.46, -h * 0.72);
-  ctx.lineTo(w * 0.46, -h * 0.72);
-  ctx.lineTo(w * 0.46, -h * 0.22);
-  ctx.lineTo(w * 0.30, -h * 0.02);
-  ctx.lineTo(w * 0.12, -h * 0.24);
-  ctx.lineTo(-w * 0.04, 0);
-  ctx.lineTo(-w * 0.26, -h * 0.2);
-  ctx.lineTo(-w * 0.46, -h * 0.02);
-  ctx.closePath();
-  ctx.fill();
-  // bercak luka/decay
-  ctx.fillStyle = flash ? '#ffeeee' : 'rgba(0,0,0,0.22)';
-  ctx.beginPath(); ctx.ellipse(-w * 0.14, -h * 0.5, w * 0.09, h * 0.06, 0.4, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(w * 0.18, -h * 0.35, w * 0.07, h * 0.05, -0.3, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-
-  // kepala miring, rahang menganga
-  ctx.save();
-  ctx.translate(w * 0.05 * Math.sin(e.walkFrame * 0.5), -h * 0.85);
-  ctx.rotate(limp);
-  ctx.fillStyle = flash ? '#ffffff' : def.color;
-  ctx.beginPath(); ctx.arc(0, 0, w * 0.32, 0.15, Math.PI * 2 - 0.15); ctx.fill();
-  // rahang bawah terbuka
-  ctx.fillStyle = flash ? '#ffdddd' : def.dark;
-  ctx.beginPath(); ctx.ellipse(0, w * 0.2, w * 0.16, w * 0.12, 0, 0, Math.PI); ctx.fill();
-  // mata satu sipit satu melotot
-  ctx.fillStyle = '#c9ffb0';
-  ctx.beginPath(); ctx.arc(-w * 0.12, -w * 0.04, 2.8, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(w * 0.13, -w * 0.02, 1.6, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
-
-  if (def.isBoss) {
-    ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, -h * 0.85, w * 0.34 + 5, 0, Math.PI * 2); ctx.stroke();
-  }
-}
-function castleDrawVampireBody(e, def, flash) {
-  const w = e.w, h = e.h;
-  const sway = Math.sin(e.walkFrame * 0.5) * 0.08;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.42, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
-
-  // jubah lebar mengembang di belakang badan
-  ctx.save();
-  ctx.rotate(sway * 0.4);
-  const capeFlare = 1 + Math.sin(e.walkFrame * 0.6) * 0.06;
-  ctx.fillStyle = flash ? '#ffdddd' : def.dark;
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.28, -h * 0.7);
-  ctx.lineTo(-w * 0.98 * capeFlare, -h * 0.15);
-  ctx.lineTo(-w * 0.7, h * 0.02);
-  ctx.lineTo(-w * 0.2, -h * 0.12);
-  ctx.lineTo(-w * 0.2, -h * 0.02);
-  ctx.lineTo(0, -h * 0.1);
-  ctx.lineTo(w * 0.2, -h * 0.02);
-  ctx.lineTo(w * 0.2, -h * 0.12);
-  ctx.lineTo(w * 0.7, h * 0.02);
-  ctx.lineTo(w * 0.98 * capeFlare, -h * 0.15);
-  ctx.lineTo(w * 0.28, -h * 0.7);
-  ctx.closePath();
-  ctx.fill();
-  // lapisan dalam jubah warna merah
-  ctx.fillStyle = 'rgba(180,30,50,0.55)';
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.22, -h * 0.62); ctx.lineTo(-w * 0.55, -h * 0.1); ctx.lineTo(0, -h * 0.05); ctx.lineTo(w * 0.55, -h * 0.1); ctx.lineTo(w * 0.22, -h * 0.62);
-  ctx.closePath(); ctx.fill();
-  ctx.restore();
-
-  // badan ramping berjas
-  ctx.fillStyle = flash ? '#ffffff' : def.color;
-  roundRectPath(ctx, -w * 0.3, -h * 0.75, w * 0.6, h * 0.55, w * 0.16);
-  ctx.fill();
-  // kerah tinggi runcing di leher
-  ctx.fillStyle = flash ? '#ffdddd' : def.dark;
-  ctx.beginPath(); ctx.moveTo(-w * 0.28, -h * 0.7); ctx.lineTo(-w * 0.08, -h * 0.92); ctx.lineTo(-w * 0.08, -h * 0.6); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(w * 0.28, -h * 0.7); ctx.lineTo(w * 0.08, -h * 0.92); ctx.lineTo(w * 0.08, -h * 0.6); ctx.closePath(); ctx.fill();
-
-  // kepala pucat + rambut klimis poni-V + mata merah menyala + taring
-  ctx.save();
-  ctx.translate(0, -h * 0.88);
-  ctx.rotate(sway);
-  ctx.fillStyle = flash ? '#ffffff' : '#e8d6d0';
-  ctx.beginPath(); ctx.arc(0, 0, w * 0.3, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = flash ? '#ffdddd' : def.dark;
-  ctx.beginPath();
-  ctx.arc(0, -w * 0.02, w * 0.32, Math.PI * 1.05, Math.PI * 1.95); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(0, -w * 0.06); ctx.lineTo(-w * 0.05, w * 0.06); ctx.lineTo(w * 0.05, w * 0.06); ctx.closePath(); ctx.fill();
-  ctx.shadowColor = '#ff3b4d'; ctx.shadowBlur = 6;
-  ctx.fillStyle = '#ff3b4d';
-  ctx.beginPath(); ctx.arc(-w * 0.11, -w * 0.02, 2.4, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(w * 0.11, -w * 0.02, 2.4, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.moveTo(-w * 0.08, w * 0.1); ctx.lineTo(-w * 0.05, w * 0.18); ctx.lineTo(-w * 0.02, w * 0.1); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(w * 0.08, w * 0.1); ctx.lineTo(w * 0.05, w * 0.18); ctx.lineTo(w * 0.02, w * 0.1); ctx.closePath(); ctx.fill();
-  ctx.restore();
-
-  if (def.isBoss) {
-    ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, -h * 0.85, w * 0.34 + 5, 0, Math.PI * 2); ctx.stroke();
-  }
-}
-function castleDrawAurelionBody(e, def, flash) {
-  const w = e.w, h = e.h;
-  const sway = Math.sin(e.walkFrame * 0.4) * 0.05;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.44, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
-
-  // jubah hitam panjang mengembang di belakang
-  ctx.save();
-  ctx.rotate(sway * 0.3);
-  ctx.fillStyle = flash ? '#ffdddd' : '#0d0710';
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.34, -h * 0.66);
-  ctx.lineTo(-w * 0.64, h * 0.04);
-  ctx.lineTo(-w * 0.2, -h * 0.1);
-  ctx.lineTo(0, -h * 0.02);
-  ctx.lineTo(w * 0.2, -h * 0.1);
-  ctx.lineTo(w * 0.64, h * 0.04);
-  ctx.lineTo(w * 0.34, -h * 0.66);
-  ctx.closePath(); ctx.fill();
-  ctx.restore();
-
-  // pedang besar "Vanity" terselip di punggung
-  ctx.save();
-  ctx.translate(w * 0.36, -h * 0.55);
-  ctx.rotate(0.55);
-  ctx.fillStyle = '#cfd6e0';
-  ctx.fillRect(-3, -h * 0.5, 6, h * 0.5);
-  ctx.fillStyle = '#c9a227';
-  ctx.fillRect(-10, -2, 20, 6);
-  ctx.restore();
-
-  // armor putih-keemasan
-  ctx.fillStyle = flash ? '#ffffff' : '#eee6d2';
-  roundRectPath(ctx, -w * 0.3, -h * 0.78, w * 0.6, h * 0.58, w * 0.14);
-  ctx.fill();
-  ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2;
-  ctx.strokeRect(-w * 0.3 + 3, -h * 0.78 + 4, w * 0.6 - 6, h * 0.58 - 8);
-
-  // kepala datar sombong + mahkota emas retak
-  ctx.save();
-  ctx.translate(0, -h * 0.9);
-  ctx.rotate(sway);
-  ctx.fillStyle = flash ? '#ffffff' : '#e8d6c8';
-  ctx.beginPath(); ctx.arc(0, 0, w * 0.28, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#3a2e26'; ctx.lineWidth = 1.4;
-  ctx.beginPath(); ctx.moveTo(-w * 0.08, w * 0.1); ctx.lineTo(w * 0.08, w * 0.1); ctx.stroke();
-  ctx.shadowColor = '#ff3b3b'; ctx.shadowBlur = 6;
-  ctx.fillStyle = '#ff3b3b';
-  ctx.beginPath(); ctx.arc(-w * 0.1, -w * 0.02, 2.2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(w * 0.1, -w * 0.02, 2.2, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#e8c15c';
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.26, -w * 0.22); ctx.lineTo(-w * 0.26, -w * 0.34); ctx.lineTo(-w * 0.14, -w * 0.44);
-  ctx.lineTo(-w * 0.05, -w * 0.3); ctx.lineTo(0, -w * 0.48); ctx.lineTo(w * 0.05, -w * 0.3);
-  ctx.lineTo(w * 0.14, -w * 0.44); ctx.lineTo(w * 0.26, -w * 0.34); ctx.lineTo(w * 0.26, -w * 0.22);
-  ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = 'rgba(40,20,10,0.8)'; ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.moveTo(-w * 0.05, -w * 0.36); ctx.lineTo(w * 0.03, -w * 0.24); ctx.stroke();
-  ctx.restore();
-
-  ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(0, -h * 0.9, w * 0.34 + 6, 0, Math.PI * 2); ctx.stroke();
-}
-function castleDrawGoldravenBody(e, def, flash) {
-  const w = e.w, h = e.h;
-  const sway = Math.sin(e.walkFrame * 0.3) * 0.04;
-  ctx.fillStyle = 'rgba(0,0,0,0.38)';
-  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.46, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
-
-  // tubuh besar berarmor kerajaan
-  ctx.save();
-  ctx.rotate(sway * 0.2);
-  ctx.fillStyle = flash ? '#ffffff' : '#5a2f0a';
-  roundRectPath(ctx, -w * 0.4, -h * 0.76, w * 0.8, h * 0.6, w * 0.16);
-  ctx.fill();
-  ctx.restore();
-  ctx.strokeStyle = '#e8c15c'; ctx.lineWidth = 3;
-  ctx.strokeRect(-w * 0.4 + 4, -h * 0.76 + 5, w * 0.8 - 8, h * 0.6 - 10);
-
-  // perhiasan: koin, permata, emas nempel di sekujur badan
-  const jewelColors = ['#ff5d5d', '#5dc7ff', '#7ee696', '#ffd63c'];
-  for (let i = 0; i < 7; i++) {
-    const jx = -w * 0.3 + (i % 3) * w * 0.3 + (i >= 3 ? w * 0.06 : 0);
-    const jy = -h * 0.6 + Math.floor(i / 3) * h * 0.2;
-    ctx.fillStyle = jewelColors[i % jewelColors.length];
-    ctx.beginPath(); ctx.arc(jx, jy, 3.4, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.8; ctx.stroke();
-  }
-  // pundak emas besar (pauldron)
-  ctx.fillStyle = '#e8c15c';
-  ctx.beginPath(); ctx.arc(-w * 0.4, -h * 0.72, 9, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(w * 0.4, -h * 0.72, 9, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#ff5d5d';
-  ctx.beginPath(); ctx.arc(-w * 0.4, -h * 0.72, 3, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(w * 0.4, -h * 0.72, 3, 0, Math.PI * 2); ctx.fill();
-
-  // kepala tamak + mahkota kecil bergerigi emas
-  ctx.save();
-  ctx.translate(0, -h * 0.9);
-  ctx.rotate(sway);
-  ctx.fillStyle = flash ? '#ffffff' : '#c88a52';
-  ctx.beginPath(); ctx.arc(0, 0, w * 0.26, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#ff3b3b';
-  ctx.beginPath(); ctx.arc(-w * 0.09, -w * 0.02, 2.4, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(w * 0.09, -w * 0.02, 2.4, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#e8c15c';
-  ctx.fillRect(-w * 0.2, -w * 0.32, w * 0.4, 6);
-  for (let i = 0; i < 3; i++) {
-    ctx.beginPath();
-    ctx.moveTo(-w * 0.16 + i * w * 0.16, -w * 0.32);
-    ctx.lineTo(-w * 0.16 + i * w * 0.16 + w * 0.05, -w * 0.44);
-    ctx.lineTo(-w * 0.16 + i * w * 0.16 + w * 0.1, -w * 0.32);
-    ctx.closePath(); ctx.fill();
-  }
-  ctx.restore();
-
-  // efek "menyerap harta" — cincin cahaya emas berkedip pas dia mau nembak
-  if (e.absorbT > 0) {
-    ctx.save();
-    ctx.globalAlpha = Math.min(1, e.absorbT / 26) * 0.7;
-    ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(0, -h * 0.5, w * 0.55 + (26 - e.absorbT) * 1.8, 0, Math.PI * 2); ctx.stroke();
-    ctx.restore();
-  }
-
-  ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(0, -h * 0.9, w * 0.34 + 8, 0, Math.PI * 2); ctx.stroke();
-}
-function castleDrawProjectile(p) {
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  if (p.kind === 'portal') {
-    ctx.rotate(frame * 0.15);
-    ctx.shadowColor = 'rgba(255,111,174,0.85)'; ctx.shadowBlur = 12;
-    const grd = ctx.createRadialGradient(0, 0, 1, 0, 0, 9);
-    grd.addColorStop(0, '#ffe0f0'); grd.addColorStop(0.6, '#ff6fae'); grd.addColorStop(1, 'rgba(255,111,174,0)');
-    ctx.fillStyle = grd;
-    ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#3a0a10'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.ellipse(0, 0, 8, 4, frame * 0.1, 0, Math.PI * 2); ctx.stroke();
-  } else {
-    ctx.rotate(frame * 0.25);
-    ctx.shadowColor = 'rgba(255,214,60,0.8)'; ctx.shadowBlur = 8;
-    ctx.fillStyle = '#ffd63c';
-    ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#fff8d0';
-    ctx.beginPath(); ctx.arc(-2, -2, 2, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.restore();
-}
-function castleDrawVelariaBody(e, def, flash) {
-  const w = e.w, h = e.h;
-  const sway = Math.sin(e.walkFrame * 0.45) * 0.06;
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.4, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
-
-  // jubah merah panjang mengalir
-  ctx.save();
-  ctx.rotate(sway * 0.4);
-  ctx.fillStyle = flash ? '#ffdddd' : '#8a1a2a';
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.3, -h * 0.68);
-  ctx.lineTo(-w * 0.5, h * 0.02);
-  ctx.lineTo(-w * 0.16, -h * 0.14);
-  ctx.lineTo(0, -h * 0.04);
-  ctx.lineTo(w * 0.16, -h * 0.14);
-  ctx.lineTo(w * 0.5, h * 0.02);
-  ctx.lineTo(w * 0.3, -h * 0.68);
-  ctx.closePath(); ctx.fill();
-  ctx.restore();
-
-  // tubuh ramping berselubung kain merah gelap
-  ctx.fillStyle = flash ? '#ffffff' : '#5a1018';
-  roundRectPath(ctx, -w * 0.24, -h * 0.76, w * 0.48, h * 0.56, w * 0.14);
-  ctx.fill();
-
-  // kepala + topeng setengah terbuka
-  ctx.save();
-  ctx.translate(0, -h * 0.9);
-  ctx.rotate(sway);
-  ctx.fillStyle = flash ? '#ffffff' : '#e8c9c0';
-  ctx.beginPath(); ctx.arc(0, 0, w * 0.26, 0, Math.PI * 2); ctx.fill();
-  // topeng menutup bagian atas wajah
-  ctx.fillStyle = '#2a0a10';
-  ctx.beginPath();
-  ctx.moveTo(-w * 0.26, -w * 0.02);
-  ctx.lineTo(-w * 0.26, -w * 0.2);
-  ctx.quadraticCurveTo(0, -w * 0.34, w * 0.26, -w * 0.2);
-  ctx.lineTo(w * 0.26, -w * 0.02);
-  ctx.quadraticCurveTo(0, w * 0.06, -w * 0.26, -w * 0.02);
-  ctx.closePath(); ctx.fill();
-  ctx.shadowColor = '#ff6fae'; ctx.shadowBlur = 6;
-  ctx.fillStyle = '#ff6fae';
-  ctx.beginPath(); ctx.arc(-w * 0.1, -w * 0.08, 2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(w * 0.1, -w * 0.08, 2, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowBlur = 0;
-  // bibir separuh wajah terbuka di bawah topeng
-  ctx.strokeStyle = '#a03040'; ctx.lineWidth = 1.4;
-  ctx.beginPath(); ctx.moveTo(-w * 0.06, w * 0.12); ctx.lineTo(w * 0.06, w * 0.12); ctx.stroke();
-  ctx.restore();
-
-  ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(0, -h * 0.9, w * 0.34 + 6, 0, Math.PI * 2); ctx.stroke();
-}
-function castleDrawMirroraBody(e, def, flash) {
-  const w = e.w, h = e.h;
-  const sway = Math.sin(e.walkFrame * 0.4) * 0.05;
-  let tint = '#b8a6ff';
-  if (e.mimicMode === 'aurelion') tint = '#e8c15c';
-  else if (e.mimicMode === 'goldraven') tint = '#ffd63c';
-  else if (e.mimicMode === 'dino') tint = '#7ee696';
-  ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  ctx.beginPath(); ctx.ellipse(0, 2, w * 0.4, h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
-
-  // tubuh kristal faceted
-  ctx.save();
-  ctx.rotate(sway * 0.3);
-  ctx.globalAlpha = 0.88;
-  ctx.fillStyle = flash ? '#ffffff' : tint;
-  ctx.beginPath();
-  ctx.moveTo(0, -h * 0.78);
-  ctx.lineTo(w * 0.3, -h * 0.5);
-  ctx.lineTo(w * 0.22, -h * 0.05);
-  ctx.lineTo(0, h * 0.02);
-  ctx.lineTo(-w * 0.22, -h * 0.05);
-  ctx.lineTo(-w * 0.3, -h * 0.5);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.moveTo(0, -h * 0.78); ctx.lineTo(0, h * 0.02); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-w * 0.3, -h * 0.5); ctx.lineTo(w * 0.3, -h * 0.5); ctx.stroke();
-  ctx.restore();
-
-  // kepala kristal reflektif (wajah kosong, cuma kilau)
-  ctx.save();
-  ctx.translate(0, -h * 0.88);
-  ctx.rotate(sway);
-  ctx.globalAlpha = 0.92;
-  ctx.fillStyle = flash ? '#ffffff' : tint;
-  ctx.beginPath();
-  ctx.moveTo(0, -w * 0.28); ctx.lineTo(w * 0.22, 0); ctx.lineTo(0, w * 0.28); ctx.lineTo(-w * 0.22, 0);
-  ctx.closePath(); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 1; ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  ctx.beginPath(); ctx.moveTo(-w * 0.06, -w * 0.12); ctx.lineTo(0, -w * 0.02); ctx.lineTo(-w * 0.02, w * 0.02); ctx.closePath(); ctx.fill();
-  ctx.restore();
-
-  if (e.mimicMode) {
-    ctx.save();
-    ctx.globalAlpha = 0.5 + Math.sin(frame * 0.1) * 0.2;
-    ctx.strokeStyle = tint; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, -h * 0.5, w * 0.5, 0, Math.PI * 2); ctx.stroke();
-    ctx.restore();
-  }
-  ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(0, -h * 0.88, w * 0.34 + 6, 0, Math.PI * 2); ctx.stroke();
 }
 function castleDrawEnemy(e) {
   const def = CASTLE_ENEMY_DEFS[e.type];
@@ -2367,19 +1223,25 @@ function castleDrawEnemy(e) {
   ctx.translate(e.x + e.w / 2, e.y + e.h);
   const bob = Math.sin(e.walkFrame) * 2;
   ctx.translate(0, bob);
-  const flash = e.hitFlash > 0;
-  if (e.type === 'aurelion') {
-    castleDrawAurelionBody(e, def, flash);
-  } else if (e.type === 'goldraven') {
-    castleDrawGoldravenBody(e, def, flash);
-  } else if (e.type === 'velaria') {
-    castleDrawVelariaBody(e, def, flash);
-  } else if (e.type === 'mirrora') {
-    castleDrawMirroraBody(e, def, flash);
-  } else if (e.type === 'vampire' || e.type === 'vampireKing') {
-    castleDrawVampireBody(e, def, flash);
-  } else {
-    castleDrawZombieBody(e, def, flash);
+  ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : def.dark;
+  ctx.beginPath(); ctx.ellipse(0, 2, e.w * 0.42, e.h * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = e.hitFlash > 0 ? '#ffdddd' : def.color;
+  roundRectPath(ctx, -e.w / 2, -e.h, e.w, e.h * 0.72, e.w * 0.22);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(0, -e.h * 0.85, e.w * 0.34, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#e5484d';
+  ctx.beginPath(); ctx.arc(-e.w * 0.12, -e.h * 0.88, 2.6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(e.w * 0.12, -e.h * 0.88, 2.6, 0, Math.PI * 2); ctx.fill();
+  if (def.isBoss) {
+    ctx.strokeStyle = '#ffd63c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, -e.h * 0.85, e.w * 0.34 + 4, 0, Math.PI * 2); ctx.stroke();
+  }
+  if (e.type === 'vampire') {
+    ctx.fillStyle = def.dark;
+    ctx.beginPath(); ctx.moveTo(-e.w / 2, -e.h * 0.55); ctx.lineTo(-e.w * 0.9, -e.h * 0.75); ctx.lineTo(-e.w / 2, -e.h * 0.35); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(e.w / 2, -e.h * 0.55); ctx.lineTo(e.w * 0.9, -e.h * 0.75); ctx.lineTo(e.w / 2, -e.h * 0.35); ctx.closePath(); ctx.fill();
   }
   // health mini-bar per musuh biasa (bukan boss, boss pakai bar besar terpisah)
   if (!def.isBoss) {
@@ -2397,43 +1259,6 @@ function castleDrawMantra(m) {
   ctx.shadowColor = m.type === 'hp' ? 'rgba(255,90,110,0.8)' : 'rgba(184,166,255,0.8)';
   ctx.shadowBlur = 10;
   ctx.fillText(m.type === 'hp' ? '❤' : '✨', 0, 0);
-  ctx.restore();
-}
-function castleDrawPortal(p) {
-  ctx.save();
-  ctx.translate(p.x, p.y - 36);
-  const pulse = 1 + Math.sin(p.t * 3) * 0.06;
-  ctx.scale(pulse, pulse);
-  // cahaya luar
-  const glow = ctx.createRadialGradient(0, 0, 4, 0, 0, 46);
-  glow.addColorStop(0, 'rgba(184,166,255,0.55)');
-  glow.addColorStop(1, 'rgba(184,166,255,0)');
-  ctx.fillStyle = glow;
-  ctx.beginPath(); ctx.arc(0, 0, 46, 0, Math.PI * 2); ctx.fill();
-  // gerbang batu
-  ctx.strokeStyle = '#2a1f38'; ctx.lineWidth = 7;
-  ctx.beginPath(); ctx.ellipse(0, 0, 26, 36, 0, 0, Math.PI * 2); ctx.stroke();
-  ctx.strokeStyle = '#4a3860'; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.ellipse(0, 0, 26, 36, 0, 0, Math.PI * 2); ctx.stroke();
-  // pusaran ungu berputar
-  ctx.save();
-  ctx.beginPath(); ctx.ellipse(0, 0, 22, 32, 0, 0, Math.PI * 2); ctx.clip();
-  ctx.fillStyle = '#160e22'; ctx.fillRect(-24, -34, 48, 68);
-  for (let i = 0; i < 4; i++) {
-    const ang = p.t * (i % 2 === 0 ? 1.4 : -1.6) + i * 1.6;
-    const grd = ctx.createLinearGradient(-22, 0, 22, 0);
-    grd.addColorStop(0, 'rgba(184,166,255,0)');
-    grd.addColorStop(0.5, `rgba(${190 - i * 15},${170 - i * 10},255,0.55)`);
-    grd.addColorStop(1, 'rgba(184,166,255,0)');
-    ctx.fillStyle = grd;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 22 - i * 3, 32 - i * 5, ang, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
-  ctx.shadowColor = 'rgba(230,220,255,0.9)'; ctx.shadowBlur = 14;
-  ctx.font = '20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('🌀', 0, 0);
   ctx.restore();
 }
 function castleDrawBackground() {
@@ -2461,19 +1286,10 @@ function castleDrawBackground() {
   for (let x = 0; x < VW; x += 34) { ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x, VH); ctx.stroke(); }
 }
 function castleDraw() {
-  if (castle.victoryCutscene) { castleDrawVictoryCutscene(); return; }
-  if (castle.memoryCutscene) { castleDrawMemoryCutscene(); return; }
-  if (castle.illusion) { castleDrawIllusion(); return; }
-  if (castleFloorDef() && castleFloorDef().subconscious) {
-    castleDrawSubconsciousBackground();
-  } else {
-    castleDrawBackground();
-  }
-  if (castle.portal) castleDrawPortal(castle.portal);
+  castleDrawBackground();
   castle.mantras.forEach(castleDrawMantra);
   castle.enemies.slice().sort((a, b) => a.y - b.y).forEach(castleDrawEnemy);
   if (castle.boss) castleDrawEnemy(castle.boss);
-  castle.projectiles.forEach(castleDrawProjectile);
   const s = getSkin(data.selectedSkin);
   let alpha = 1;
   if (castle.invincible > 0 && Math.floor(frame / 4) % 2 === 0) alpha = 0.4;
@@ -2528,20 +1344,40 @@ const BIOMES = {
   pantai: { sky: ['#7ec8e3', '#eaf9ff'], ground: { grass: '#e8d9a0', grassDark: '#d1bd7c', dirt: '#f0e2b8', dirtDark: '#dcc98f' }, hill: { back: '#8fd0d8', front: '#6fbcc7' }, label: '🏖 PANTAI' }
 };
 
-/* ===================== EVENT SPESIAL: HANTU ===================== =
-   Event terbatas waktu. Selama aktif: biome Padang Rumput "disamarkan"
-   jadi Padang Hantu (warna ungu/kelabu berkabut), muncul buff Hantu baru,
-   dan ada 2 misi dengan hadiah skin & jejak kaki bertema hantu. Semua
-   dicek murni dari tanggal perangkat (Date.now()) — begitu lewat tanggal
-   berakhir, tema & buff otomatis hilang sendiri tanpa perlu update lagi. */
+/* ===================== EVENT SPESIAL: HALLOWEEN SUPER HORROR =====================
+   Event terbatas waktu (v6.0). Selama aktif: SEMUA biome "disamarkan" jadi versi
+   horor (bukan cuma Padang Rumput lagi — lihat HALLOWEEN_BIOME_SKINS), muncul
+   buff baru "Permen" + obstacle baru bertema Halloween, dan ada 4 misi berantai
+   dengan hadiah skin & jejak kaki eksklusif. Internal masih pakai nama lama
+   (GHOST_EVENT / data.eventGhost / ghostEventActive dst.) supaya save lama
+   TIDAK rusak — tapi semua teks yang kelihatan pemain sudah ganti jadi Halloween.
+   Semua dicek murni dari tanggal perangkat (Date.now()) — begitu lewat tanggal
+   berakhir, tema/buff/obstacle otomatis hilang sendiri tanpa perlu update lagi. */
 const GHOST_EVENT = {
-  name: 'Event Hantu',
-  endTime: new Date('2026-09-15T00:00:00').getTime()
+  name: 'Event Halloween Super Horror',
+  endTime: new Date('2026-11-02T23:59:59').getTime()
 };
 function ghostEventActive() { return Date.now() < GHOST_EVENT.endTime; }
 function ghostEventTimeLeft() { return Math.max(0, GHOST_EVENT.endTime - Date.now()); }
 const GHOST_MISSION1_TARGET = 3;
 const GHOST_MISSION2_TARGET_MS = 6 * 60 * 1000; // 6 menit
+const GHOST_MISSION3_TARGET = 15; // kumpulkan 15x buff Permen
+const GHOST_MISSION4_TARGET_SCORE = 500; // raih skor 500 dalam 1x main
+// BUGFIX: dulu field data.eventGhost cuma di-default SEKALI di awal file (saat load
+// pertama kali), jadi kalau pemain pindah profil / impor save / pull data server
+// (yang semua manggil `data = loadData()` lagi belakangan), profil baru itu bisa
+// kebawa field eventGhost yang belum lengkap. Sekarang dibuat fungsi terpisah yang
+// dipanggil ULANG tiap kali `data` di-assign ulang, bukan cuma sekali di awal.
+function ensureEventGhostDefaults() {
+  if (!data.eventGhost || typeof data.eventGhost !== 'object') data.eventGhost = {};
+  const eg = data.eventGhost;
+  eg.nightPasses = eg.nightPasses || 0;
+  eg.mission1Done = !!eg.mission1Done;
+  eg.mission2Done = !!eg.mission2Done;
+  eg.candyCollected = eg.candyCollected || 0;
+  eg.mission3Done = !!eg.mission3Done;
+  eg.mission4Done = !!eg.mission4Done;
+}
 // Misi 1: "lewati biome malam hari sebanyak 3 kali" — dihitung SETIAP KALI
 // biome berubah masuk ke 'malam' (akumulasi lintas sesi main, tersimpan permanen).
 function ghostToast(text) {
@@ -2557,10 +1393,11 @@ function onEnterNightBiome() {
   if (data.eventGhost.nightPasses >= GHOST_MISSION1_TARGET) {
     data.eventGhost.mission1Done = true;
     if (!data.unlockedTrails.includes(8)) data.unlockedTrails.push(8);
-    ghostToast('👻 MISI 1 SELESAI!\nJejak Kaki Hantu terbuka di Toko!');
+    ghostToast('🎃 MISI 1 SELESAI!\nJejak Kaki Hantu terbuka di Toko!');
     AudioMgr.sfx('unlock');
   }
   saveData();
+  updateGhostEventButtonVisibility();
 }
 // Misi 2: "bertahan 6 menit di game" — dicek tiap frame selama mode Biasa berjalan.
 function checkGhostMission2() {
@@ -2575,18 +1412,86 @@ function checkGhostMission2() {
     ghostToast('👻 MISI 2 SELESAI!\nSkin Hantu Kelana terbuka di Toko!');
     AudioMgr.sfx('unlock');
     saveData();
+    updateGhostEventButtonVisibility();
   }
 }
-const GHOST_PADANG = {
-  sky: ['#4a3d70', '#8b7bc0'],
-  ground: { grass: '#4a3d66', grassDark: '#332950', dirt: '#5c4a75', dirtDark: '#40324f' },
-  hill: { back: '#5d4c85', front: '#453868' },
-  label: '👻 PADANG HANTU'
+// Misi 3: "kumpulkan 15x buff Permen" — dihitung tiap kali buff 'candy' diambil
+// (lintas sesi main, tersimpan permanen, dipanggil dari applyBuff()).
+function registerCandyCollected() {
+  if (!ghostEventActive() || data.eventGhost.mission3Done) return;
+  data.eventGhost.candyCollected = (data.eventGhost.candyCollected || 0) + 1;
+  if (data.eventGhost.candyCollected >= GHOST_MISSION3_TARGET) {
+    data.eventGhost.mission3Done = true;
+    if (!data.unlocked.includes(11)) data.unlocked.push(11);
+    spawnPopup(dino.x + dino.w / 2, dino.y - 30, '🎃 SKIN TERBUKA!', '#ff9f43');
+    ghostToast('🎃 MISI 3 SELESAI!\nSkin Labu Seram terbuka di Toko!');
+    AudioMgr.sfx('unlock');
+  }
+  saveData();
+  updateGhostEventButtonVisibility();
+}
+// Misi 4: "raih skor 500 dalam 1x main selagi event aktif" — dicek tiap ~0.5 detik
+// selama Mode Biasa berjalan, sama kayak checkGhostMission2().
+function checkGhostMission4() {
+  if (data.eventGhost.mission4Done) return;
+  if (!ghostEventActive()) return;
+  if (mode !== 'normal' || state !== 'playing') return;
+  if (score >= GHOST_MISSION4_TARGET_SCORE) {
+    data.eventGhost.mission4Done = true;
+    if (!data.unlockedTrails.includes(9)) data.unlockedTrails.push(9);
+    spawnPopup(dino.x + dino.w / 2, dino.y - 30, '🔥 JEJAK TERBUKA!', '#ff7a1a');
+    ghostToast('🔥 MISI 4 SELESAI!\nJejak Labu Api terbuka di Toko!');
+    AudioMgr.sfx('unlock');
+    saveData();
+    updateGhostEventButtonVisibility();
+  }
+}
+// Reskin tiap biome selama event — bukan cuma Padang Rumput lagi, SEMUA biome
+// dapat palet horor sendiri (lebih gelap/ungu/merah/hijau sakit), tapi tetap
+// nyambung sama tema aslinya (mis. Dataran Salju jadi Salju Berhantu, bukan
+// warna random yang gak nyambung).
+const HALLOWEEN_BIOME_SKINS = {
+  padang: {
+    sky: ['#4a3d70', '#8b7bc0'],
+    ground: { grass: '#4a3d66', grassDark: '#332950', dirt: '#5c4a75', dirtDark: '#40324f' },
+    hill: { back: '#5d4c85', front: '#453868' },
+    label: '🎃 PADANG HANTU'
+  },
+  gurun: {
+    sky: ['#5a3a2a', '#a85a3a'],
+    ground: { grass: '#7a5a3a', grassDark: '#4a3420', dirt: '#8a6540', dirtDark: '#5a3e26' },
+    hill: { back: '#7a4a30', front: '#5c3620' },
+    label: '🎃 GURUN TERKUTUK'
+  },
+  salju: {
+    sky: ['#2a3a5a', '#6a7aa8'],
+    ground: { grass: '#bcd0e0', grassDark: '#8aa0b8', dirt: '#a8bcd0', dirtDark: '#7a90a8' },
+    hill: { back: '#5a6a90', front: '#3f4e70' },
+    label: '❄️ SALJU BERHANTU'
+  },
+  malam: {
+    sky: ['#2a0f1a', '#5a1a2a'],
+    ground: { grass: '#2a1520', grassDark: '#1a0c14', dirt: '#301a24', dirtDark: '#1c0e16' },
+    hill: { back: '#3a1428', front: '#2a0e1e' },
+    label: '🩸 BULAN DARAH'
+  },
+  hutan: {
+    sky: ['#2a3a2a', '#4a6a4a'],
+    ground: { grass: '#243824', grassDark: '#162616', dirt: '#3a2c1e', dirtDark: '#241a10' },
+    hill: { back: '#2a4a2e', front: '#1c3820' },
+    label: '🕸️ HUTAN SERAM'
+  },
+  pantai: {
+    sky: ['#3a2a4a', '#7a5a8a'],
+    ground: { grass: '#6a5a68', grassDark: '#463a46', dirt: '#7a6878', dirtDark: '#524454' },
+    hill: { back: '#5a4a68', front: '#3f3450' },
+    label: '💀 PANTAI MAYAT HIDUP'
+  }
 };
-// Dipakai skyColors/groundColors/hillColor/setBiome supaya "padang" tampil
-// bertema hantu selama event aktif, dan otomatis balik normal begitu event usai.
+// Dipakai skyColors/groundColors/hillColor/setBiome supaya SEMUA biome tampil
+// bertema Halloween selama event aktif, dan otomatis balik normal begitu event usai.
 function activeBiomeDef(b) {
-  return (b === 'padang' && ghostEventActive()) ? GHOST_PADANG : BIOMES[b];
+  return (ghostEventActive() && HALLOWEEN_BIOME_SKINS[b]) ? HALLOWEEN_BIOME_SKINS[b] : BIOMES[b];
 }
 let biome = 'padang';
 let biomeScoreMark = 0;
@@ -3230,6 +2135,9 @@ function spawnObstacle() {
   if (weather === 'wind') pool.push('flyingLow', 'flyingHigh', 'flyingDebris');
   if (weather === 'kabut') pool.push('batuKabut', 'batuKabut');
   if (weather === 'clear') pool.push('beehive');
+  // Rintangan baru bertema Halloween — cuma nongol selama Event Halloween aktif,
+  // hilang otomatis begitu event lewat (sama pola gating-nya kayak buff Hantu di spawnBuff()).
+  if (ghostEventActive()) pool.push('pumpkinPile', 'pumpkinPile', 'webTrap', 'batSwarm', 'batSwarm');
 
   const type = pool[Math.floor(Math.random() * pool.length)];
   let obs = { type, x: VW + 30 };
@@ -3260,6 +2168,12 @@ function spawnObstacle() {
     obs.rotSpeed = 0.12 + Math.random() * 0.1;
   } else if (type === 'batuKabut') {
     obs.w = 30; obs.h = 24; obs.y = GROUND_Y - obs.h;
+  } else if (type === 'pumpkinPile') {
+    obs.w = 36; obs.h = 30; obs.y = GROUND_Y - obs.h;
+  } else if (type === 'webTrap') {
+    obs.w = 48; obs.h = 40; obs.y = GROUND_Y - obs.h;
+  } else if (type === 'batSwarm') {
+    obs.w = 50; obs.h = 30; obs.y = GROUND_Y - 50 - Math.random() * 90; obs.flap = Math.random() * 10;
   }
   obstacles.push(obs);
 }
@@ -3272,8 +2186,8 @@ function spawnCoin() {
 
 function spawnBuff() {
   const pool = ['speed', 'speed', 'jump', 'jump', 'coin2x', 'coin2x', 'shield', 'shield', 'magnet', 'magnet', 'slowmo', 'slowmo', 'life'];
-  // Buff Hantu cuma nongol selama Event Hantu aktif — hilang otomatis begitu event lewat.
-  if (ghostEventActive()) pool.push('ghost', 'ghost');
+  // Buff Hantu & Permen cuma nongol selama Event Halloween aktif — hilang otomatis begitu event lewat.
+  if (ghostEventActive()) pool.push('ghost', 'ghost', 'candy', 'candy', 'candy');
   const type = pool[Math.floor(Math.random() * pool.length)];
   const highChance = Math.random() < 0.5;
   const y = highChance ? GROUND_Y - 100 : GROUND_Y - 38;
@@ -3340,8 +2254,6 @@ function maybeChangeBiome() {
 /* ===================== INPUT ===================== */
 function jump() {
   if (state !== 'playing' || qPaused || paused) return;
-  if (mode === 'quest' && (castle.victoryCutscene || castle.memoryCutscene)) return;
-  if (mode === 'quest' && castle.ruleEffect === 'nojump') return;
   if (!dino.jumping) {
     dino.jumping = true;
     dino.vy = mode === 'quest' ? JUMP_FORCE : currentJumpForce();
@@ -3350,23 +2262,9 @@ function jump() {
 }
 function releaseFlight() {
 }
-// Tap-di-canvas buat lompat cuma berlaku di Mode Biasa — di Story Mode (Kastil) ini
-// dimatikan karena lompat sudah ada tombol sendiri, kalau dibiarkan aktif tiap
-// sentuhan di layar (termasuk gak sengaja pas narik joystick) bikin dino lompat sendiri.
-// Tap di layar juga dipakai buat "skip" nunggu di sinematik kemenangan Chapter 1.
-function handleCanvasTap() {
-  if (mode !== 'quest') { jump(); return; }
-  if (castle.victoryCutscene && castle.victoryCutscene.phase === 'text' && castle.victoryCutscene.t > 70) {
-    castleFinishVictoryCutscene();
-  }
-  if (castle.memoryCutscene && castle.memoryCutscene.phase === 'scene' && castle.memoryCutscene.t > 60) {
-    castle.memoryCutscene.phase = 'fadeout';
-    castle.memoryCutscene.t = 0;
-  }
-}
-canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleCanvasTap(); }, { passive: false });
+canvas.addEventListener('touchstart', (e) => { e.preventDefault(); jump(); }, { passive: false });
 canvas.addEventListener('touchend', (e) => { e.preventDefault(); releaseFlight(); }, { passive: false });
-canvas.addEventListener('mousedown', handleCanvasTap);
+canvas.addEventListener('mousedown', jump);
 canvas.addEventListener('mouseup', releaseFlight);
 
 /* ===================== JEDA (PAUSE) MANUAL ===================== */
@@ -3406,12 +2304,13 @@ document.getElementById('pauseMenuBtn').addEventListener('click', () => {
 (function setupCastleControls() {
   const stick = document.getElementById('castleJoystick');
   const knob = document.getElementById('castleJoystickKnob');
+  let dragging = false;
   const maxR = 32;
-  let stickPointerId = null;
-  function setKnob(dx) {
-    const dist = Math.min(maxR, Math.abs(dx));
-    const kx = Math.sign(dx) * dist;
-    knob.style.transform = `translate(${kx}px, 0)`;
+  function setKnob(dx, dy) {
+    const dist = Math.min(maxR, Math.sqrt(dx * dx + dy * dy));
+    const ang = Math.atan2(dy, dx);
+    const kx = Math.cos(ang) * dist, ky = Math.sin(ang) * dist;
+    knob.style.transform = `translate(${kx}px, ${ky}px)`;
     castle.analogX = kx / maxR;
   }
   function resetKnob() {
@@ -3421,34 +2320,18 @@ document.getElementById('pauseMenuBtn').addEventListener('click', () => {
   function handleMove(clientX) {
     const rect = stick.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
-    setKnob(clientX - cx);
+    setKnob(clientX - cx, 0);
   }
-  // Pakai Pointer Events (bukan click/touchstart biasa) supaya joystick dan
-  // tombol lompat/serang bisa dipencet BARENGAN oleh jari berbeda tanpa saling
-  // "rebutan" satu sentuhan — ini yang bikin dulu kerasa cuma bisa 1 tombol aktif.
-  stick.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    stickPointerId = e.pointerId;
-    if (stick.setPointerCapture) stick.setPointerCapture(e.pointerId);
-    handleMove(e.clientX);
-  });
-  stick.addEventListener('pointermove', (e) => {
-    if (e.pointerId !== stickPointerId) return;
-    e.preventDefault();
-    handleMove(e.clientX);
-  });
-  function endStick(e) {
-    if (e.pointerId !== stickPointerId) return;
-    stickPointerId = null;
-    resetKnob();
-  }
-  stick.addEventListener('pointerup', endStick);
-  stick.addEventListener('pointercancel', endStick);
-  stick.addEventListener('pointerleave', (e) => { if (e.pointerId === stickPointerId) endStick(e); });
+  stick.addEventListener('touchstart', (e) => { e.preventDefault(); dragging = true; handleMove(e.touches[0].clientX); }, { passive: false });
+  stick.addEventListener('touchmove', (e) => { e.preventDefault(); if (dragging) handleMove(e.touches[0].clientX); }, { passive: false });
+  stick.addEventListener('touchend', (e) => { e.preventDefault(); dragging = false; resetKnob(); }, { passive: false });
+  stick.addEventListener('mousedown', (e) => { dragging = true; handleMove(e.clientX); });
+  window.addEventListener('mousemove', (e) => { if (dragging) handleMove(e.clientX); });
+  window.addEventListener('mouseup', () => { if (dragging) { dragging = false; resetKnob(); } });
 
-  document.getElementById('castleJumpBtn').addEventListener('pointerdown', (e) => { e.preventDefault(); jump(); });
+  document.getElementById('castleJumpBtn').addEventListener('click', () => jump());
   [0, 1, 2].forEach(i => {
-    document.getElementById('castleAtk' + i).addEventListener('pointerdown', (e) => { e.preventDefault(); castleAttack(i); });
+    document.getElementById('castleAtk' + i).addEventListener('click', () => castleAttack(i));
   });
 })();
 
@@ -3685,6 +2568,7 @@ document.getElementById('createProfileBtn').addEventListener('click', () => {
   createProfile(name, pin || null);
   nameInput.value = ''; pinInput.value = '';
   data = loadData();
+  ensureEventGhostDefaults();
   refreshLobbyStats();
   renderAccountScreen();
 });
@@ -3703,6 +2587,7 @@ document.getElementById('resetDataBtn').addEventListener('click', () => {
   if (confirm(`Hapus semua data tersimpan pada ${label} (koin, skin, progres story mode)? Tindakan ini tidak bisa dibatalkan.`)) {
     PROFILE_KEYS.forEach(k => localStorage.removeItem(profileStorageKey(getActiveProfileId(), k)));
     data = loadData();
+    ensureEventGhostDefaults();
     refreshLobbyStats();
     renderAccountScreen();
   }
@@ -3788,8 +2673,10 @@ function triggerShake() {
 }
 
 function flashRed() {
-  flashEl.style.background = '#ff4d4d';
-  flashEl.style.opacity = '0.5';
+  // Selama Event Halloween: flash kena hit jadi lebih merah darah & lebih
+  // intens (opacity lebih tinggi) biar kerasa lebih "horror" dibanding biasa.
+  flashEl.style.background = ghostEventActive() ? '#c40020' : '#ff4d4d';
+  flashEl.style.opacity = ghostEventActive() ? '0.65' : '0.5';
   setTimeout(() => { flashEl.style.opacity = '0'; }, 150);
 }
 function flashWhite() {
@@ -3922,22 +2809,6 @@ document.getElementById('dailyOverlay').addEventListener('click', (e) => {
 });
 
 /* ===================== PENGATURAN (musik & suara) ===================== */
-let hudScale = Math.min(1.3, Math.max(0.8, parseFloat(localStorage.getItem('dino_hudScale') || '1')));
-let hudOpacity = parseFloat(localStorage.getItem('dino_hudOpacity') || '1');
-let hudSide = localStorage.getItem('dino_hudSide') || 'left'; // posisi joystick: 'left' atau 'right'
-function applyHudSettings() {
-  const targets = [document.getElementById('castleControls'), document.getElementById('hudPreviewControls')];
-  targets.forEach(el => {
-    if (!el) return;
-    el.style.setProperty('--hud-scale', hudScale);
-    el.style.setProperty('--hud-opacity', hudOpacity);
-    el.classList.toggle('hud-swap', hudSide === 'right');
-  });
-}
-function setHudScale(v) { hudScale = v; localStorage.setItem('dino_hudScale', String(v)); applyHudSettings(); }
-function setHudOpacity(v) { hudOpacity = v; localStorage.setItem('dino_hudOpacity', String(v)); applyHudSettings(); }
-function setHudSide(v) { hudSide = v; localStorage.setItem('dino_hudSide', v); applyHudSettings(); }
-applyHudSettings();
 function refreshSettingsUI() {
   const musicBtn = document.getElementById('musicToggleBtn');
   const sfxBtn = document.getElementById('sfxToggleBtn');
@@ -3951,11 +2822,6 @@ function refreshSettingsUI() {
   document.querySelectorAll('.gfx-q-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.q === gfxQuality);
   });
-  document.getElementById('hudScaleSlider').value = hudScale;
-  document.getElementById('hudOpacitySlider').value = hudOpacity;
-  const hudSideBtn = document.getElementById('hudSideToggleBtn');
-  hudSideBtn.textContent = hudSide === 'left' ? 'KIRI' : 'KANAN';
-  hudSideBtn.classList.toggle('off', hudSide === 'right');
 }
 document.querySelectorAll('.gfx-q-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -3990,85 +2856,25 @@ document.getElementById('musicVolSlider').addEventListener('input', (e) => {
 document.getElementById('sfxVolSlider').addEventListener('input', (e) => {
   AudioMgr.setSfxVol(parseFloat(e.target.value));
 });
-document.getElementById('hudScaleSlider').addEventListener('input', (e) => {
-  setHudScale(parseFloat(e.target.value));
-});
-document.getElementById('hudOpacitySlider').addEventListener('input', (e) => {
-  setHudOpacity(parseFloat(e.target.value));
-});
-document.getElementById('hudSideToggleBtn').addEventListener('click', () => {
-  setHudSide(hudSide === 'left' ? 'right' : 'left');
-  refreshSettingsUI();
-  AudioMgr.sfx('click');
-});
 
 /* ===================== BERITA / UPDATE LOG =====================
    Setiap kali game ini dirilis dengan fitur/perbaikan baru, cukup tambah
    satu entri baru di paling atas array NEWS_LIST (dan naikkan APP_VERSION).
    Pemain yang sebelumnya sudah main versi lama otomatis akan melihat
    titik notifikasi merah di ikon 📰 begitu mereka buka game versi baru ini. */
-const APP_VERSION = '5.9';
+const APP_VERSION = '6.0';
 const NEWS_LIST = [
   {
-    version: '5.9',
-    date: '30 Agu 2026',
-    title: '🌙🪞 VELARIA & MIRRORA Bangkit + Kilas Balik Jadi Animasi!',
+    version: '6.0',
+    date: '25 Okt 2026',
+    title: '🎃 EVENT HALLOWEEN SUPER HORROR — sampai 2 Nov 2026!',
     items: [
-      '🆕 2 manifestasi baru bisa dimainkan langsung berurutan: VELARIA (Nafsu) lalu MIRRORA (Iri Hati)!',
-      '🌙 VELARIA: jubah merah, topeng setengah terbuka. Nembakkan portal ilusi — kalau kena, kamu ketarik ke dimensi godaan dan harus MENGHINDARI ikon-ikon yang mendekat (bukan menyerang!) sampai waktunya habis. Berhasil kabur = VELARIA jadi lengah sesaat, serang cepat sebelum dia narik kamu lagi!',
-      '🪞 MIRRORA: tubuh kristal/kaca yang bisa meniru kekuatan manifestasi lain secara acak — kadang niru aturan-ubah AURELION, kadang niru lontaran harta GOLDRAVEN, kadang niru kecepatan & agresivitas dino sendiri.',
-      '🎬 BESAR: kilas balik antar-boss sekarang ANIMASI beneran — siluet Raja Vampir & sosok lain bergerak, partikel bertema (gelembung laut, koin, salju, pecahan kaca), bukan panel teks penuh layar lagi. Subtitle singkat tetap ada di bawah sebagai pelengkap.',
-      '🌑 3 manifestasi lainnya (GORGATH, RAVAGOR, SOMNARA) masih coming soon.'
-    ]
-  },
-  {
-    version: '5.8',
-    date: '30 Agu 2026',
-    title: '💰 GOLDRAVEN Bangkit — Manifestasi Ketamakan!',
-    items: [
-      '🆕 Setelah AURELION tumbang, dino langsung lanjut lawan GOLDRAVEN — manifestasi Ketamakan sang Raja Vampir!',
-      '💰 GOLDRAVEN: tubuh besar dipenuhi perhiasan (emas, permata, koin), pakai armor kerajaan lengkap dengan mahkota bergerigi.',
-      '🎯 Kekuatan uniknya — "menyerap & melontarkan harta": tiap ~3.5 detik dia berkedip cincin emas lalu melontarkan proyektil harta ke arah dino. Ini boss jarak jauh pertama di Kastil, jadi harus pintar gerak/lompat buat ngehindar!',
-      '💭 Setelah GOLDRAVEN tumbang, muncul kilas balik cerita soal keserakahannya usai menguasai domain selatan.',
-      '🌑 4 manifestasi dosa lainnya (VELARIA, MIRRORA, GORGATH, RAVAGOR) + boss akhir SOMNARA masih coming soon, dibangun satu-satu di update berikutnya.'
-    ]
-  },
-  {
-    version: '5.7',
-    date: '30 Agu 2026',
-    title: '👑 CHAPTER 2 DIMULAI: AURELION — Manifestasi Kesombongan!',
-    items: [
-      '🆕 Chapter 2 gak lagi cuma "coming soon" — begitu Raja Vampir tumbang & animasi Alam Bawah Sadar selesai, dino LANGSUNG lawan AURELION, manifestasi pertama dari 7 dosa besar!',
-      '👑 AURELION: mahkota emas retak, jubah hitam panjang, armor putih-keemasan, mata merah menyala, membawa pedang besar berukir "Vanity".',
-      '🎲 Kekuatan unik AURELION — "ubah aturan permainan": tiap ~5 detik dia acak 1 efek (kontrol dibalik / gravitasi berat / lompat dikunci) yang aktif ~3 detik. Baca toast peringatannya biar gak kena jebak!',
-      '💭 Setelah AURELION tumbang, muncul kilas balik cerita kenapa Raja Vampir jadi sombong (jatuhnya domain Laut Selatan) — lewat panel cerita baru.',
-      '🌑 5 manifestasi dosa lainnya (GOLDRAVEN, VELARIA, MIRRORA, GORGATH, RAVAGOR) + boss akhir SOMNARA masih coming soon, dibangun satu-satu di update berikutnya.'
-    ]
-  },
-  {
-    version: '5.6',
-    date: '30 Agu 2026',
-    title: '🌑 Landing Akhir Chapter 1 Diganti: Alam Bawah Sadar!',
-    items: [
-      '🌑 Setelah Raja Vampir tumbang, dino sekarang jatuh ke ALAM BAWAH SADAR SANG RAJA VAMPIR — bukan makam kuno lagi. Kabut jiwa, pecahan kaca ingatan melayang, siluet takhta jauh dijaga 6 bayangan, dan mahkota emas retak melayang — semua nge-foreshadow cerita Chapter 2.',
-      '📖 Lore lengkap 7 manifestasi dosa besar Raja Vampir (AURELION, GOLDRAVEN, VELARIA, MIRRORA, GORGATH, RAVAGOR, SOMNARA) sudah disimpan sebagai dokumen desain — siap dibangun jadi boss fight satu-satu di update berikutnya.'
-    ]
-  },
-  {
-    version: '5.5',
-    date: '30 Agu 2026',
-    title: '🏰 Story Mode: Portal Lantai, Sinematik Kemenangan & HUD Custom!',
-    items: [
-      '🐞 BUG FIX: kontrol Kastil (joystick, lompat, serang) kadang cuma bisa dipencet satu-satu — sekarang semua tombol bisa dipencet BARENGAN pakai jari beda.',
-      '🐞 BUG FIX: dino suka lompat sendiri di Story Mode kalau layar kesentuh dikit (misal pas narik joystick) — sekarang tap-lompat cuma aktif di Mode Biasa.',
-      '🐞 BUG FIX: cegah munculnya menu "copy/share" nempel pas nahan tombol kontrol kelamaan di iPhone.',
-      '🐞 BUG FIX: HP bar "darah" Raja Vampir gak ilang pas animasi kemenangan Chapter 1 — ternyata Raja Vampir sempet ke-spawn ulang sepersekian detik gara-gara skor lantai belum direset pas cutscene mulai. Sekarang bener-bener hilang total begitu dia tumbang.',
-      '🌀 Naik lantai sekarang lewat PORTAL — begitu target lantai selesai, portal muncul dan kamu harus masuk dulu baru pindah lantai.',
-      '👑 SINEMATIK BARU begitu Raja Vampir tumbang di Lantai 4: portal raksasa muncul nutupin ruangan, dino kesedot masuk, animasi terowongan portal, lalu mendarat di makam kuno — ditutup teks "COMING SOON CHAPTER 2"!',
-      '🧟 Model zombie & 🧛 vampir dirombak total — lebih detail & seram.',
-      '🕹️ Kontrol Kastil dirapikan & diperbesar, 3 tombol serang disusun busur biar jempol gak perlu geser-geser.',
-      '🎮 Pengaturan HUD Kastil baru: atur ukuran, transparansi, posisi joystick (kiri/kanan) — lengkap kotak PRATINJAU LIVE.',
-      '🗑️ Skin "Naga Emas" dihapus dari hadiah tamat Chapter 1.'
+      '🩸 SEMUA biome jadi horor: Padang Hantu, Gurun Terkutuk, Salju Berhantu, Bulan Darah, Hutan Seram, Pantai Mayat Hidup!',
+      '🕸️ Rintangan baru: Tumpukan Labu, Jaring Laba-laba, dan Kawanan Kelelawar.',
+      '🍬 Buff baru "Permen": bonus koin instan (lebih gede kalau pakai skin Labu Seram).',
+      '🎯 4 misi event (cek ikon 🎃 di lobby): hadiah skin "Labu Seram" & Jejak Labu Api, plus Jejak Hantu & skin Hantu Kelana.',
+      '🦇 Kelelawar melayang, vignette merah, dan flash kena hit yang lebih berdarah.',
+      '🐞 Perbaikan bug: progres event kini aman saat ganti profil/impor save, bayangan Bulan Darah nyambung, dan lainnya.'
     ]
   },
   {
@@ -4103,19 +2909,41 @@ const NEWS_LIST = [
   {
     version: '4.0',
     date: '26 Agu 2026',
-    title: '🎃 EVENT HANTU + Perbaikan Grafis & Profil — Update Besar!',
+    title: '🎃 EVENT HANTU — Terbatas sampai 15 Sept 2026!',
     items: [
-      '🐞 Bug macet total di Kualitas Grafis Tinggi/4K — diperbaiki.',
-      '🖼️ Posisi HUD disempurnakan: Cuaca sebaris Koin, Buff di bawah Cuaca.',
-      '🦖 Bonus buff tiap skin sekarang jelas terlihat — ditandai di Toko & HUD.',
-      '👤 Halaman Profil dapat panel "Skin Aktif" baru, section lebih rapi.',
-      '📊 Kartu profil sekarang menampilkan skor tertinggi & koin.',
-      '❄️ Hujan di biome Salju sekarang jadi Badai Salju (kepingan salju), bukan tetesan air.',
-      '👻 EVENT HANTU dimulai! Lobby & Padang Rumput bertema hantu selama event, terbatas sampai 15 Sept 2026.',
+      '👻 Event spesial dimulai! Lobby & Padang Rumput bertema hantu selama event.',
       '🎯 2 misi baru — cek lewat ikon 👻 di lobby buat lihat progress & hadiahnya.',
       '🦴 Buff baru "Hantu": tembus pandang & bisa terobos rintangan sementara.',
       '🎁 Hadiah eksklusif: Skin "Hantu Kelana" & Jejak Kaki Hantu — cuma bisa didapat selama event.',
       '🖼️ Icon aplikasi juga ikut bertema hantu selama event berlangsung.'
+    ]
+  },
+  {
+    version: '3.3',
+    date: '26 Agu 2026',
+    title: 'Update 3.3 — Badai Salju',
+    items: [
+      '❄️ Hujan di biome Salju sekarang jadi Badai Salju (kepingan salju), bukan tetesan air.'
+    ]
+  },
+  {
+    version: '3.2',
+    date: '26 Agu 2026',
+    title: 'Update 3.2 — Profil & Skin Diperbarui',
+    items: [
+      '🦖 Lencana buff di badan dino kini besar & jelas — langsung kelihatan buff apa yang dimiliki tiap skin.',
+      '👤 Halaman Profil dapat panel "Skin Aktif" baru, section lebih rapi.',
+      '📊 Kartu profil sekarang menampilkan skor tertinggi & koin.'
+    ]
+  },
+  {
+    version: '3.1',
+    date: '26 Agu 2026',
+    title: 'Update 3.1 — Grafis & Bonus Skin',
+    items: [
+      '🐞 Bug macet total di Kualitas Grafis Tinggi/4K — diperbaiki.',
+      '🖼️ Posisi HUD disempurnakan: Cuaca sebaris Koin, Buff di bawah Cuaca.',
+      '🦖 Bonus buff tiap skin sekarang jelas terlihat — ditandai di Toko & HUD.'
     ]
   },
   {
@@ -4214,30 +3042,36 @@ function renderGhostEventPanel() {
     countdownEl.textContent = '⏳ Berakhir dalam: ' + formatGhostCountdown(ghostEventTimeLeft());
   }
   const eg = data.eventGhost;
-  const m1Done = !!eg.mission1Done, m2Done = !!eg.mission2Done;
   const m1Progress = Math.min(eg.nightPasses || 0, GHOST_MISSION1_TARGET);
+  const m3Progress = Math.min(eg.candyCollected || 0, GHOST_MISSION3_TARGET);
+  const missions = [
+    { n: '1️⃣', done: !!eg.mission1Done, title: `Lewati Biome Malam Hari sebanyak ${GHOST_MISSION1_TARGET}x`, reward: 'Jejak Kaki Hantu', cur: m1Progress, max: GHOST_MISSION1_TARGET },
+    { n: '2️⃣', done: !!eg.mission2Done, title: 'Bertahan 6 menit dalam 1x main (Mode Biasa)', reward: 'Skin Hantu Kelana' },
+    { n: '3️⃣', done: !!eg.mission3Done, title: `Kumpulkan ${GHOST_MISSION3_TARGET} Permen 🍬 (buff Halloween)`, reward: 'Skin Labu Seram 🎃', cur: m3Progress, max: GHOST_MISSION3_TARGET },
+    { n: '4️⃣', done: !!eg.mission4Done, title: `Raih skor ${GHOST_MISSION4_TARGET_SCORE} dalam 1x main (Mode Biasa)`, reward: 'Jejak Labu Api 🔥' }
+  ];
   const list = document.getElementById('ghostMissionList');
-  list.innerHTML = `
-    <div class="ghost-mission-item${m1Done ? ' done' : ''}">
-      <div class="ghost-mission-title">${m1Done ? '✅' : '1️⃣'} Lewati Biome Malam Hari sebanyak ${GHOST_MISSION1_TARGET}x</div>
-      <div class="ghost-mission-reward">🎁 Hadiah: Jejak Kaki Hantu</div>
-      <div class="ghost-mission-bar-track"><div class="ghost-mission-bar-fill" style="width:${(m1Progress / GHOST_MISSION1_TARGET) * 100}%"></div></div>
-      <div class="ghost-mission-progress-text">${m1Progress} / ${GHOST_MISSION1_TARGET}</div>
-    </div>
-    <div class="ghost-mission-item${m2Done ? ' done' : ''}">
-      <div class="ghost-mission-title">${m2Done ? '✅' : '2️⃣'} Bertahan 6 menit dalam 1x main</div>
-      <div class="ghost-mission-reward">🎁 Hadiah: Skin Hantu Kelana</div>
-      <div class="ghost-mission-bar-track"><div class="ghost-mission-bar-fill" style="width:${m2Done ? 100 : 0}%"></div></div>
-      <div class="ghost-mission-progress-text">${m2Done ? 'Selesai!' : 'Belum selesai'}</div>
+  list.innerHTML = missions.map(m => {
+    const hasCount = m.max !== undefined;
+    const pct = m.done ? 100 : (hasCount ? (m.cur / m.max) * 100 : 0);
+    const txt = m.done ? 'Selesai! ✅' : (hasCount ? `${m.cur} / ${m.max}` : 'Belum selesai');
+    return `
+    <div class="ghost-mission-item${m.done ? ' done' : ''}">
+      <div class="ghost-mission-title">${m.done ? '✅' : m.n} ${m.title}</div>
+      <div class="ghost-mission-reward">🎁 Hadiah: ${m.reward}</div>
+      <div class="ghost-mission-bar-track"><div class="ghost-mission-bar-fill" style="width:${pct}%"></div></div>
+      <div class="ghost-mission-progress-text">${txt}</div>
     </div>`;
+  }).join('');
 }
 function updateGhostEventButtonVisibility() {
   const btn = document.getElementById('ghostEventBtn');
   const active = ghostEventActive();
   btn.classList.toggle('visible', active);
   if (active) {
-    const bothDone = data.eventGhost.mission1Done && data.eventGhost.mission2Done;
-    btn.classList.toggle('has-reward', !bothDone);
+    const eg = data.eventGhost;
+    const allDone = eg.mission1Done && eg.mission2Done && eg.mission3Done && eg.mission4Done;
+    btn.classList.toggle('has-reward', !allDone);
   }
 }
 document.getElementById('ghostEventBtn').addEventListener('click', () => {
@@ -4582,6 +3416,82 @@ function drawObstacle(o) {
     return;
   }
 
+  if (o.type === 'pumpkinPile') {
+    // Tumpukan labu jack-o-lantern — rintangan tanah baru Event Halloween.
+    ctx.save();
+    const drawPumpkin = (px, py, pr, grin) => {
+      ctx.fillStyle = '#ff8a1a';
+      ctx.beginPath(); ctx.ellipse(px, py, pr, pr * 0.82, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(px, py - pr * 0.8); ctx.lineTo(px, py + pr * 0.8); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px - pr * 0.55, py - pr * 0.6); ctx.lineTo(px - pr * 0.55, py + pr * 0.6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px + pr * 0.55, py - pr * 0.6); ctx.lineTo(px + pr * 0.55, py + pr * 0.6); ctx.stroke();
+      ctx.fillStyle = '#4a2a06';
+      ctx.fillRect(px - 2, py - pr * 1.15, 4, pr * 0.4);
+      if (grin) {
+        ctx.fillStyle = '#2a1206';
+        ctx.beginPath(); ctx.moveTo(px - pr * 0.4, py - pr * 0.15); ctx.lineTo(px - pr * 0.15, py - pr * 0.15); ctx.lineTo(px - pr * 0.28, py + pr * 0.1); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(px + pr * 0.4, py - pr * 0.15); ctx.lineTo(px + pr * 0.15, py - pr * 0.15); ctx.lineTo(px + pr * 0.28, py + pr * 0.1); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(px - pr * 0.35, py + pr * 0.28); ctx.lineTo(px + pr * 0.35, py + pr * 0.28); ctx.lineTo(px + pr * 0.2, py + pr * 0.48); ctx.lineTo(px - pr * 0.2, py + pr * 0.48); ctx.closePath(); ctx.fill();
+      }
+    };
+    drawPumpkin(o.x + o.w * 0.26, o.y + o.h * 0.62, o.w * 0.26, false);
+    drawPumpkin(o.x + o.w * 0.68, o.y + o.h * 0.5, o.w * 0.34, true);
+    ctx.restore();
+    return;
+  }
+
+  if (o.type === 'webTrap') {
+    // Jaring laba-laba membentang antara dua tiang — rintangan tanah baru.
+    // Benang radial dari pusat ke titik-titik di tepi persegi, lalu beberapa
+    // "cincin" penghubung antar benang (pola jaring klasik, bukan grid biasa).
+    ctx.save();
+    const cx = o.x + o.w / 2, cy = o.y + o.h * 0.4;
+    ctx.strokeStyle = 'rgba(230,225,245,0.8)'; ctx.lineWidth = 1.2;
+    const anchors = [
+      [o.x, o.y], [o.x + o.w / 2, o.y - 4], [o.x + o.w, o.y],
+      [o.x + o.w, o.y + o.h], [o.x + o.w / 2, o.y + o.h], [o.x, o.y + o.h]
+    ];
+    anchors.forEach(([ax, ay]) => { ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ax, ay); ctx.stroke(); });
+    for (let ring = 1; ring <= 3; ring++) {
+      const t = ring / 3.4;
+      ctx.beginPath();
+      anchors.forEach(([ax, ay], i) => {
+        const px = cx + (ax - cx) * t, py = cy + (ay - cy) * t;
+        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+      });
+      ctx.closePath();
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#2a2a2a';
+    ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+
+  if (o.type === 'batSwarm') {
+    // Segerombolan kelelawar terbang berkelompok — rintangan udara baru.
+    const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+    ctx.save();
+    ctx.fillStyle = '#2b2030';
+    for (let i = 0; i < 3; i++) {
+      const bx = cx + (i - 1) * (o.w * 0.3);
+      const by = cy + Math.sin((frame + o.flap + i * 14) * 0.3) * (o.h * 0.3);
+      const flap = Math.sin((frame + o.flap + i * 14) * 0.3) * 6;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx - 9, by - flap - 3);
+      ctx.lineTo(bx - 3, by);
+      ctx.lineTo(bx, by + 2);
+      ctx.lineTo(bx + 3, by);
+      ctx.lineTo(bx + 9, by - flap - 3);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+    return;
+  }
+
   // Selama Event Hantu: kaktus diganti jadi nisan bersalib, warnanya ikut
   // biome yang lagi aktif (gurun=batu pasir, salju=batu es, malam=batu gelap,
   // dll) — jadi tetap nyambung ke tema biome, bukan cuma "kaktus" yang aneh
@@ -4823,9 +3733,12 @@ function drawBackground() {
   // sun / moon
   if (weather !== 'rain' && weather !== 'kabut') {
     const sx = VW * 0.82, sy = VH * 0.16, sr = 34;
+    // "Bulan Darah": selama Event Halloween, biome Malam Hari dapat bulan merah
+    // darah alih-alih bulan putih biasa — bagian dari reskin horor biome ini.
+    const bloodMoon = biome === 'malam' && ghostEventActive();
     if (gfxQuality === 'rendah') {
       // Mode Rendah: matahari cuma lingkaran polos, tanpa glow sama sekali.
-      ctx.fillStyle = weather === 'wind' ? '#ffcf6b' : (biome === 'malam' ? '#eef1ff' : '#ffe36b');
+      ctx.fillStyle = weather === 'wind' ? '#ffcf6b' : (bloodMoon ? '#d9304a' : (biome === 'malam' ? '#eef1ff' : '#ffe36b'));
       ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
     } else {
       const glowMul = gfxQuality === '4k' ? 3.1 : gfxQuality === 'tinggi' ? 2.6 : 2.2;
@@ -4833,6 +3746,9 @@ function drawBackground() {
       if (weather === 'wind') {
         sg.addColorStop(0, 'rgba(255,200,120,0.9)');
         sg.addColorStop(1, 'rgba(255,200,120,0)');
+      } else if (bloodMoon) {
+        sg.addColorStop(0, 'rgba(220,40,60,0.85)');
+        sg.addColorStop(1, 'rgba(220,40,60,0)');
       } else if (biome === 'malam') {
         sg.addColorStop(0, 'rgba(210,220,255,0.85)');
         sg.addColorStop(1, 'rgba(210,220,255,0)');
@@ -4845,15 +3761,19 @@ function drawBackground() {
       // Mode 4K: tambahan lapisan bloom ekstra biar makin "menyala".
       if (gfxQuality === '4k') {
         const sg2 = ctx.createRadialGradient(sx, sy, 0, sx, sy, sr * 1.5);
-        sg2.addColorStop(0, 'rgba(255,255,255,0.55)');
-        sg2.addColorStop(1, 'rgba(255,255,255,0)');
+        sg2.addColorStop(0, bloodMoon ? 'rgba(255,120,120,0.5)' : 'rgba(255,255,255,0.55)');
+        sg2.addColorStop(1, bloodMoon ? 'rgba(255,120,120,0)' : 'rgba(255,255,255,0)');
         ctx.fillStyle = sg2;
         ctx.beginPath(); ctx.arc(sx, sy, sr * 1.5, 0, Math.PI * 2); ctx.fill();
       }
-      ctx.fillStyle = weather === 'wind' ? '#ffcf6b' : (biome === 'malam' ? '#eef1ff' : '#ffe36b');
+      ctx.fillStyle = weather === 'wind' ? '#ffcf6b' : (bloodMoon ? '#d9304a' : (biome === 'malam' ? '#eef1ff' : '#ffe36b'));
       ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
       if (biome === 'malam' && weather === 'clear') {
-        ctx.fillStyle = BIOMES.malam.sky[1];
+        // BUGFIX: dulu bayangan sabit bulan dipaksa pakai BIOMES.malam.sky[1]
+        // (warna langit malam NORMAL) walau biome-nya lagi direskin event —
+        // jadi ada "jahitan" warna aneh di pinggir bulan selama Bulan Darah.
+        // Sekarang ambil dari activeBiomeDef('malam') biar selalu nyambung.
+        ctx.fillStyle = activeBiomeDef('malam').sky[1];
         ctx.beginPath(); ctx.arc(sx - 10, sy - 8, sr * 0.8, 0, Math.PI * 2); ctx.fill();
       }
     }
@@ -5000,7 +3920,7 @@ function rectOverlap(ax, ay, aw, ah, bx, by, bw, bh, pad) {
 /* ===================== UPDATE ===================== */
 function update() {
   frame++;
-  if (frame % 30 === 0) checkGhostMission2(); // cek tiap ~0.5 detik, gak perlu tiap frame
+  if (frame % 30 === 0) { checkGhostMission2(); checkGhostMission4(); } // cek tiap ~0.5 detik, gak perlu tiap frame
 
   if (dino.jumping) {
     dino.vy += GRAVITY;
@@ -5229,6 +4149,7 @@ function spawnTrailParticle(effSpeed) {
   else if (t.type === 'bubble') { p.vy = -0.9 - Math.random() * 0.4; }
   else if (t.type === 'rainbow') { p.color = RAINBOW_COLORS[Math.floor(Math.random() * RAINBOW_COLORS.length)]; p.vy = -0.4; }
   else if (t.type === 'ghost') { p.vy = -0.45; p.swayPhase = Math.random() * Math.PI * 2; }
+  else if (t.type === 'pumpkinfire') { p.vy = -0.6; p.grav = -0.02; p.flicker = Math.random() * Math.PI * 2; }
   dustParticles.push(p);
 }
 function drawDust() {
@@ -5315,6 +4236,19 @@ function drawDust() {
         ctx.fill();
         break;
       }
+      case 'pumpkinfire': {
+        // Api labu Halloween: inti oranye terang + kedip-kedip ungu di tepi,
+        // meniru lilin di dalam jack-o-lantern yang bergoyang.
+        if (d.flicker !== undefined) d.flicker += 0.3;
+        const flick = 0.75 + Math.sin(d.flicker || 0) * 0.25;
+        const grad = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, (6 + age * 0.3) * flick);
+        grad.addColorStop(0, '#ffe08a');
+        grad.addColorStop(0.5, d.color);
+        grad.addColorStop(1, d.color2);
+        ctx.fillStyle = grad;
+        ctx.beginPath(); ctx.arc(d.x, d.y, (4 + age * 0.25) * flick, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
       default: {
         ctx.globalAlpha = k * 0.4;
         ctx.fillStyle = d.color || '#a08a6a';
@@ -5326,9 +4260,48 @@ function drawDust() {
     ctx.restore();
   });
 }
+// Dekorasi latar Event Halloween: kelelawar melayang + vignette kabut merah
+// tipis di pinggir layar. Jumlah kelelawar ikut gfxParticleMul() (sistem
+// kualitas grafis yang sama dipakai partikel lain) biar HP lawas tetap ringan,
+// dan posisinya dihitung murni dari `frame` (gak butuh array/init terpisah)
+// supaya otomatis no-op begitu event lewat — tinggal gak kepanggil lagi.
+function drawHalloweenAmbience() {
+  if (!ghostEventActive()) return;
+  const nBats = Math.max(0, Math.round(3 * gfxParticleMul()));
+  ctx.save();
+  ctx.fillStyle = '#1a1420';
+  for (let i = 0; i < nBats; i++) {
+    const speed = 0.4 + (i % 3) * 0.15;
+    const bx = ((frame * speed + i * 310) % (VW + 120)) - 60;
+    const by = 40 + (i * 57) % (VH * 0.4) + Math.sin(frame * 0.03 + i) * 14;
+    const flap = Math.sin(frame * 0.25 + i * 2) * 7;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(bx - 11, by - flap - 4);
+    ctx.lineTo(bx - 4, by);
+    ctx.lineTo(bx, by + 2);
+    ctx.lineTo(bx + 4, by);
+    ctx.lineTo(bx + 11, by - flap - 4);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Vignette merah tipis di pinggir layar — cuma di kualitas normal ke atas
+  // (mode Rendah memang sengaja polos tanpa glow, sama kayak elemen lain).
+  if (gfxQuality !== 'rendah') {
+    ctx.globalAlpha = 1;
+    const vg = ctx.createRadialGradient(VW / 2, VH / 2, Math.min(VW, VH) * 0.4, VW / 2, VH / 2, Math.max(VW, VH) * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(120,0,20,0.22)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, VW, VH);
+  }
+  ctx.restore();
+}
 function draw() {
   drawBackground();
   drawClouds();
+  drawHalloweenAmbience();
   if (weather === 'wind') drawWind();
   drawHills();
   drawGround();
